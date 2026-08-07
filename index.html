@@ -56,11 +56,15 @@
   .disp { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .04em; }
   .num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
 
-  /* ===== Top HUD: scorebug + thin IQ / gear bar, floated on the field ===== */
-  .hud-top { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 6; display: flex; flex-direction: column; gap: 6px; }
+  /* ===== Top HUD: scorebug + gear button, floated on the field ===== */
+  .hud-top { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 6; display: flex; align-items: stretch; gap: 6px; }
+  .hud-top .gearbtn { flex: 0 0 auto; width: 40px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; cursor: pointer;
+    background: linear-gradient(180deg, rgba(18,32,58,.9), rgba(11,21,38,.84)); backdrop-filter: blur(5px);
+    color: var(--muted); font-size: 17px; display: grid; place-items: center; }
+  .hud-top .gearbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---- TV-style scorebug ---- */
-  .scorebug { display: flex; align-items: stretch; border-radius: 12px; overflow: hidden;
+  .scorebug { flex: 1; display: flex; align-items: stretch; border-radius: 12px; overflow: hidden;
     background: linear-gradient(180deg, rgba(18,32,58,.92), rgba(11,21,38,.86)); backdrop-filter: blur(5px);
     border: 1px solid rgba(255,255,255,.12); box-shadow: 0 8px 22px -12px rgba(0,0,0,.8);
     font-family: var(--font-display); }
@@ -86,18 +90,15 @@
   .scorebug .bsrow.s .p.on { background: var(--wrong); border-color: var(--wrong); box-shadow: 0 0 5px -1px var(--wrong); }
   .scorebug .bsrow.o .p.on { background: var(--flame); border-color: var(--flame); box-shadow: 0 0 5px -1px var(--flame); }
 
-  /* ---- thin IQ / streak / gear bar under the scorebug ---- */
-  .iqbar { display: flex; align-items: center; gap: 9px; padding: 5px 11px; border-radius: 10px;
-    background: linear-gradient(180deg, rgba(10,17,30,.78), rgba(10,17,30,.6)); backdrop-filter: blur(5px);
-    border: 1px solid rgba(255,255,255,.08); font-family: var(--font-display); }
-  .iqbar .iqcell { display: flex; align-items: baseline; gap: 5px; }
-  .iqbar .iqcell b { font-size: 8px; letter-spacing: .14em; color: var(--muted-2); font-weight: 400; }
-  .iqbar .iq { font-size: 16px; color: var(--gold); }
-  .iqbar .streak { font-size: 13px; color: var(--flame); display: inline-flex; align-items: center; gap: 3px; }
-  .iqbar .progress { font-size: 10px; letter-spacing: .06em; color: var(--muted-2); }
-  .iqbar .spacer { flex: 1; }
-  .iqbar .gearbtn { border: 0; background: transparent; color: var(--muted); font-size: 16px; cursor: pointer; padding: 2px 4px; line-height: 1; }
-  .iqbar .gearbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* ---- IQ segment inside the scorebug (DEF IQ + streak + play progress) ---- */
+  .scorebug .iq { align-items: center; justify-content: center; text-align: center;
+    background: linear-gradient(180deg, rgba(251,191,36,.13), rgba(251,191,36,.03)); }
+  .scorebug .iq .iqcell { display: flex; align-items: baseline; gap: 5px; }
+  .scorebug .iq .iqcell b { font-size: 8px; letter-spacing: .12em; color: var(--muted-2); font-weight: 400; }
+  .scorebug .iq .iqn { font-size: 17px; color: var(--gold); line-height: 1; }
+  .scorebug .iq .iqsub { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .scorebug .iq .streak { font-size: 11px; color: var(--flame); }
+  .scorebug .iq .prog { font-size: 8.5px; letter-spacing: .05em; color: var(--muted-2); }
 
   /* ===== Gear popover: drill-position filter + Quiz/Reference mode ===== */
   .gearmenu { position: absolute; top: 92px; right: 8px; z-index: 8; width: 210px; padding: 11px;
@@ -132,11 +133,19 @@
     box-shadow: 0 0 16px -4px rgba(249,115,22,.7); font-family: var(--font-display); font-size: 15px; }
   .pretop .callline { margin-bottom: 0; text-align: left; flex: 1; }
   .premise { font-size: 12.5px; color: var(--ink); font-weight: 600; line-height: 1.3; margin-bottom: 10px; text-wrap: balance; }
+  /* collapse the coaching panel to peek at the field (keeps call + Play) */
+  .pretop .collapse { flex: 0 0 auto; border: 0; background: transparent; color: var(--muted); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px 4px; transition: transform .2s; }
+  .pretop .collapse:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .prepitch.collapsed .collapse { transform: rotate(180deg); }
+  .prepitch.collapsed .premise,
+  .prepitch.collapsed .brief,
+  .prepitch.collapsed .diffrow { display: none; }
+  .prepitch.collapsed .pretop { margin-bottom: 10px; }
 
-  /* ---- Field fills the whole stage (cropping a little foul territory) ---- */
+  /* ---- Field: show the whole width, centered; overlays cover the margins ---- */
   .fieldwrap { position: absolute; inset: 0; overflow: hidden;
-    background: radial-gradient(80% 55% at 50% 10%, rgba(150,190,220,.10), transparent 60%), var(--sky); }
-  svg.field { position: absolute; top: 50%; left: 50%; width: auto; height: 98%;
+    background: radial-gradient(80% 55% at 50% 12%, rgba(150,190,220,.10), transparent 60%), var(--sky); }
+  svg.field { position: absolute; top: 50%; left: 50%; width: auto; height: 80%; max-height: none;
     transform: translate(-50%, -50%); }
 
   .prompt { text-align: center; font-family: var(--font-display); text-transform: uppercase; letter-spacing: .1em; font-size: 12px; color: var(--muted); margin: 12px 0 8px; }
@@ -304,13 +313,7 @@
 
   <div class="hud-top">
     <div class="scorebug" id="scorebug"></div>
-    <div class="iqbar">
-      <span class="iqcell"><b>DEF IQ</b><span class="iq num" id="iq">0</span></span>
-      <span class="streak num" id="streak">0<span style="font-size:11px">🔥</span></span>
-      <span class="spacer"></span>
-      <span class="progress num" id="progress"></span>
-      <button class="gearbtn" id="gearBtn" aria-label="Settings" aria-expanded="false">⚙</button>
-    </div>
+    <button class="gearbtn" id="gearBtn" aria-label="Settings" aria-expanded="false">⚙</button>
   </div>
 
   <div class="gearmenu" id="gearmenu" hidden>
@@ -329,6 +332,7 @@
         <div class="pretop">
           <span class="posbadge" id="posbadge">3B</span>
           <div class="callline" id="callline"></div>
+          <button class="collapse" id="collapseBtn" aria-label="Collapse to see the field" aria-expanded="true">▾</button>
         </div>
         <div class="premise" id="premise"></div>
         <ul class="brief" id="brief"></ul>
@@ -739,6 +743,7 @@
   let pick = null;      // the spot Rylan committed to during the read (null = he froze)
   let readScale = 1.75; // Rookie by default; the ball flight (the clock) is slower = more time
   let flightToken = 0;  // bumped to cancel an in-progress ball flight (Next / new play)
+  let panelCollapsed = false; // coaching panel collapsed to peek at the field
   let displayOpts = []; // options in shuffled display order (so the answer isn't always first)
   let posFilter = '3B'; // drill one position at a time
   const POSITIONS = ['All', ...Array.from(new Set(SCENARIOS.map((s) => s.pos)))];
@@ -1170,6 +1175,7 @@
     const base = (cx, cy, lit) =>
       `<rect x="${cx - 2.6}" y="${cy - 2.6}" width="5.2" height="5.2" transform="rotate(45 ${cx} ${cy})" ${lit ? 'fill="#fbbf24" stroke="#fbbf24"' : 'fill="none" stroke="#9fb3cf"'} stroke-width="1"/>`;
     const dia = `<svg class="dia" viewBox="0 0 22 16" aria-hidden="true">${base(11, 4.5, on.includes('2B'))}${base(17.5, 10, on.includes('1B'))}${base(4.5, 10, on.includes('3B'))}</svg>`;
+    const prog = `${posFilter === 'All' ? 'ALL' : order[idx].pos} · ${idx + 1}/${order.length}`;
     $('scorebug').innerHTML =
       `<div class="seg teams">
          <div class="tr away"><span class="tab"></span><span class="ab">AWY</span><span class="rs">${g.away}</span></div>
@@ -1180,6 +1186,10 @@
          <div class="bsrow b"><span class="bl">B</span><span class="pips">${pips(g.balls, 3)}</span></div>
          <div class="bsrow s"><span class="bl">S</span><span class="pips">${pips(g.strikes, 2)}</span></div>
          <div class="bsrow o"><span class="bl">O</span><span class="pips">${pips(g.outs, 2)}</span></div>
+       </div>
+       <div class="seg iq">
+         <div class="iqcell"><b>DEF IQ</b><span class="iqn num" id="iq">${iq}</span></div>
+         <div class="iqsub"><span class="streak" id="streak">${streak}<span style="font-size:9px">🔥</span></span><span class="prog">${prog}</span></div>
        </div>`;
   }
 
@@ -1263,9 +1273,9 @@
     const sc = order[idx];
     answered = false; phase = 'setup'; pick = null; flightToken++; // cancel any in-air ball
     renderSituation(sc.game, sc.runners);
-    $('progress').textContent = `${posFilter === 'All' ? 'ALL' : sc.pos} · ${idx + 1}/${order.length}`;
     $('posbadge').textContent = sc.pos;
     $('premise').innerHTML = linkify(sc.play);
+    $('prepitch').classList.toggle('collapsed', panelCollapsed);
     $('feedback').className = 'feedback';
     // Shuffle the options → spot positions (unlabeled); the stable option.n still
     // drives per-option outcomes, so nothing else breaks.
@@ -1290,6 +1300,11 @@
   }
 
   $('playbtn').addEventListener('click', startPlay);
+  $('collapseBtn').addEventListener('click', () => {
+    panelCollapsed = !panelCollapsed;
+    $('prepitch').classList.toggle('collapsed', panelCollapsed);
+    $('collapseBtn').setAttribute('aria-expanded', String(!panelCollapsed));
+  });
   $('diffRookie').addEventListener('click', () => setDiff('rookie'));
   $('diffReal').addEventListener('click', () => setDiff('real'));
   $('next').addEventListener('click', () => { idx += 1; if (idx >= order.length) { buildOrder(); idx = 0; } render(); window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); });
