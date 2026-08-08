@@ -37,6 +37,23 @@
     MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330 },
   };
 
+  // Every field SHAPE + STYLE knob in one place (this is what the field editor
+  // will drive). Distances are fractions of the base-path length unless noted;
+  // CFG above only sets the scale (base/pitch/fence distances).
+  const STYLE = {
+    arc:          { peak: 1.62, radius: 1.12 },        // grass line: depth behind 2nd, circle tightness (smaller = tighter)
+    infieldGrass: { scale: 0.92, cutout: 0.11 },       // how close to the bases, base-corner scoop span
+    dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.17, mound: 0.135 },
+    wall:         { panels: 6, ease: 1.7 },            // outfield fence: # straight panels, pole->center easing power
+    mow:          { width: 3.3, opacity: 0.055 },      // mow stripe width (viewBox units) + opacity
+    colors: {
+      grass:   ['#2c6a46', '#1c4a34', '#123020'],
+      infield: ['#347a4f', '#265d3e'],
+      dirt:    ['#c8814f', '#7d4526'],
+      track: '#a5794c', wall: '#0a1f14', chalk: '#eef3f9',
+    },
+  };
+
   // Build the world (all points in feet; home = origin, +y toward CF, +x toward 1B).
   function buildWorld(c) {
     const d = c.base * SQRT1_2;             // base offset along x and y for 1B/3B
@@ -52,11 +69,12 @@
       CF: polar(0,  c.fCF * 0.74),
       RF: polar(32, c.fRF * 0.72),
     };
-    // outfield fence = several STRAIGHT panels; depth eases from the poles up to
-    // center so a deep-center park reads as angled panels, not a sharp kite.
-    const wall = [-45, -30, -15, 0, 15, 30, 45].map(a => {
+    // outfield fence = STYLE.wall.panels STRAIGHT panels; depth eases from the poles
+    // up to center (STYLE.wall.ease) so a deep-center park reads as angled panels.
+    const wall = Array.from({ length: STYLE.wall.panels + 1 }, (_, i) => {
+      const a = -45 + (90 / STYLE.wall.panels) * i;
       const pole = a <= 0 ? c.fLF : c.fRF;
-      const depth = c.fCF - (c.fCF - pole) * Math.pow(Math.abs(a) / 45, 1.7);
+      const depth = c.fCF - (c.fCF - pole) * Math.pow(Math.abs(a) / 45, STYLE.wall.ease);
       return polar(a, depth);
     });
     return { bases, fielders, wall, mound: { x: 0, y: c.pitch } };
@@ -114,8 +132,8 @@
 
   // Uniform-width vertical mow stripes, clipped to a given grass shape.
   function mowStripes(clip) {
-    const W = 3.3; let s = '';
-    for (let x = -3; x < VB.w; x += 2 * W) s += `<rect x="${x.toFixed(1)}" y="0" width="${W}" height="${VB.h}" fill="#eafff4" opacity=".055" clip-path="url(#${clip})"/>`;
+    const W = STYLE.mow.width; let s = '';
+    for (let x = -3; x < VB.w; x += 2 * W) s += `<rect x="${x.toFixed(1)}" y="0" width="${W}" height="${VB.h}" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#${clip})"/>`;
     return s;
   }
 
@@ -130,28 +148,28 @@
     const wallLine = 'M ' + w.wall.map(pj).join(' L ');
     const foul = (side) => 'M ' + pj(B.H) + ' L ' + pj(side === 'R' ? w.wall[w.wall.length - 1] : w.wall[0]);
     const rAt = (ft) => Math.hypot(P({x:0,y:ft}).x - hm.x, P({x:0,y:ft}).y - hm.y);
-    const moundR = rAt(c.base * 0.135), homeR = rAt(c.base * 0.2);
+    const moundR = rAt(c.base * STYLE.dirt.mound);
     const bs = [B.H, B['1B'], B['2B'], B['3B']];
-    // inside grass comes up close to the bases: longer straight sides with just a
-    // shallow scoop at each base corner (small backoff = long straights, shallow arc)
-    const grassIn = roundDia(bs.map(b => P(lerp(b, 0.92))), rAt(c.base * 0.11), true);
+    // inside grass comes up close to the bases (STYLE.infieldGrass.scale) with just
+    // a shallow scoop at each base corner (STYLE.infieldGrass.cutout backoff)
+    const grassIn = roundDia(bs.map(b => P(lerp(b, STYLE.infieldGrass.scale))), rAt(c.base * STYLE.infieldGrass.cutout), true);
     // skinned infield dirt: foul lines out to the corners, then a TRUE circular
-    // grass-line arc. The arc PEAK behind 2nd (yp) is fixed; the radius sets how
-    // tight the circle is (smaller radius = tighter, collapsing toward that peak).
-    const yp = c.base * 1.62;                 // grass-line depth behind 2nd (kept)
-    const Rarc = c.base * 1.12;               // tightness — smaller = tighter
+    // grass-line arc. PEAK depth behind 2nd is STYLE.arc.peak; STYLE.arc.radius
+    // sets how tight the circle is (smaller = tighter, collapsing toward that peak).
+    const yp = c.base * STYLE.arc.peak;
+    const Rarc = c.base * STYLE.arc.radius;
     const cyw = yp - Rarc;                     // circle center (world y)
     const tt = (cyw + Math.sqrt(Math.max(0, 2 * Rarc * Rarc - cyw * cyw))) / 2; // corner dist along foul lines
     const Rs = rAt(Rarc);
     const dirtArc = `M ${f2(P(B.H))} L ${f2(P({ x: tt, y: tt }))} A ${Rs.toFixed(1)} ${Rs.toFixed(1)} 0 0 0 ${f2(P({ x: -tt, y: tt }))} L ${f2(P(B.H))} Z`;
-    const foulDirtW = rAt(c.base * 0.13);                  // consistent dirt strip along the foul lines
+    const foulDirtW = rAt(c.base * STYLE.dirt.foulStrip);  // consistent dirt strip along the foul lines
     // small home-plate dirt circle (encircles the batter's boxes) — a SUBPATH so
     // it unions into the infield-dirt fan as one continuous piece
-    const hcR = rAt(c.base * 0.17);
+    const hcR = rAt(c.base * STYLE.dirt.homeCircle);
     const homeCirc = `M ${(hm.x - hcR).toFixed(1)} ${hm.y.toFixed(1)} a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(2 * hcR).toFixed(1)} 0 a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(-2 * hcR).toFixed(1)} 0 Z`;
-    const trackW = rAt(c.base * 0.14);                     // warning-track band width
+    const trackW = rAt(c.base * STYLE.dirt.warningTrack);  // warning-track band width
     // batter's boxes flanking home plate (world feet)
-    const bbox = (sx) => { const pts = [[sx*1.7,-2.5],[sx*5.4,-2.5],[sx*5.4,4],[sx*1.7,4]].map(([x,y]) => P({x,y})); return `<path d="M ${pts.map(f2).join(' L ')} Z" fill="none" stroke="#eef3f9" stroke-width=".35" opacity=".7"/>`; };
+    const bbox = (sx) => { const pts = [[sx*1.7,-2.5],[sx*5.4,-2.5],[sx*5.4,4],[sx*1.7,4]].map(([x,y]) => P({x,y})); return `<path d="M ${pts.map(f2).join(' L ')} Z" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>`; };
     const fld = Object.entries(w.fielders).map(([k, p]) => { const s = P(p); return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.3" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+0.85).toFixed(1)}" text-anchor="middle" font-size="2.3" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`; }).join('');
     const baseSq = ['1B','2B','3B'].map(k => { const s = P(B[k]); return `<rect x="${(s.x-1.2).toFixed(1)}" y="${(s.y-1.2).toFixed(1)}" width="2.4" height="2.4" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`; }).join('');
     const plate = `<path d="M ${(hm.x-1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y+0.4).toFixed(1)} L ${hm.x.toFixed(1)} ${(hm.y+1.6).toFixed(1)} L ${(hm.x-1.3).toFixed(1)} ${(hm.y+0.4).toFixed(1)} Z" fill="#f4f7fb"/>`;
@@ -165,21 +183,21 @@
     // Reorder / add / remove a layer here; each is self-contained.
     const layers = [
       ['defs', `<defs>
-        <radialGradient id="grass-${gid}" cx="50%" cy="82%" r="95%"><stop offset="0%" stop-color="#2c6a46"/><stop offset="55%" stop-color="#1c4a34"/><stop offset="100%" stop-color="#123020"/></radialGradient>
-        <radialGradient id="infg-${gid}" cx="50%" cy="72%" r="80%"><stop offset="0%" stop-color="#347a4f"/><stop offset="100%" stop-color="#265d3e"/></radialGradient>
-        <linearGradient id="dirt-${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c8814f"/><stop offset="100%" stop-color="#7d4526"/></linearGradient>
+        <radialGradient id="grass-${gid}" cx="50%" cy="82%" r="95%"><stop offset="0%" stop-color="${STYLE.colors.grass[0]}"/><stop offset="55%" stop-color="${STYLE.colors.grass[1]}"/><stop offset="100%" stop-color="${STYLE.colors.grass[2]}"/></radialGradient>
+        <radialGradient id="infg-${gid}" cx="50%" cy="72%" r="80%"><stop offset="0%" stop-color="${STYLE.colors.infield[0]}"/><stop offset="100%" stop-color="${STYLE.colors.infield[1]}"/></radialGradient>
+        <linearGradient id="dirt-${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
         <radialGradient id="vig-${gid}" cx="50%" cy="58%" r="72%"><stop offset="58%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".42"/></radialGradient>
         <clipPath id="fair-${gid}"><path d="${grass}"/></clipPath>
         <clipPath id="infgc-${gid}"><path d="${grassIn}"/></clipPath>
       </defs>`],
       ['outfield-grass', `<path d="${grass}" fill="url(#grass-${gid})"/>`],
       ['outfield-mow', mowStripes('fair-' + gid)],
-      ['warning-track', `<path d="${wallLine}" fill="none" stroke="#a5794c" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/><path d="${wallLine}" fill="none" stroke="#0a1f14" stroke-width="1.6" stroke-linejoin="round"/>`],
+      ['warning-track', `<path d="${wallLine}" fill="none" stroke="${STYLE.colors.track}" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/><path d="${wallLine}" fill="none" stroke="${STYLE.colors.wall}" stroke-width="1.6" stroke-linejoin="round"/>`],
       ['foul-dirt', `<path d="${foul('L')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/><path d="${foul('R')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>`],
       ['infield-dirt', `<path d="${dirtArc} ${homeCirc}" fill="url(#dirt-${gid})"/>`],
       ['infield-grass', `<path d="${grassIn}" fill="url(#infg-${gid})"/>${mowStripes('infgc-' + gid)}`],
       ['mound', `<circle cx="${mnd.x.toFixed(1)}" cy="${mnd.y.toFixed(1)}" r="${moundR.toFixed(1)}" fill="url(#dirt-${gid})"/>`],
-      ['foul-lines', `<path d="${foul('L')}" stroke="#eef3f9" stroke-width=".45" opacity=".6" fill="none"/><path d="${foul('R')}" stroke="#eef3f9" stroke-width=".45" opacity=".6" fill="none"/>`],
+      ['foul-lines', `<path d="${foul('L')}" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6" fill="none"/><path d="${foul('R')}" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6" fill="none"/>`],
       ['batter-boxes', `${bbox(-1)}${bbox(1)}`],
       ['bases', `${baseSq}${plate}`],
       ['fielders', fld],
