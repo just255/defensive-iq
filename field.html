@@ -116,10 +116,15 @@
     // inside grass comes up close to the bases: longer straight sides with just a
     // shallow scoop at each base corner (small backoff = long straights, shallow arc)
     const grassIn = roundDia(bs.map(b => P(lerp(b, 0.92))), rAt(c.base * 0.11), true);
-    // skinned infield dirt: a circular sector — foul lines out to the corners, then a
-    // TRUE circular grass-line arc (centered at home, radius = the corner distance).
-    const Rarc = c.base * 1.5, Rs = rAt(Rarc);
-    const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(45, Rarc)))} A ${Rs.toFixed(1)} ${Rs.toFixed(1)} 0 0 0 ${f2(P(polar(-45, Rarc)))} L ${f2(P(B.H))} Z`;
+    // skinned infield dirt: foul lines out to the corners, then a TRUE circular
+    // grass-line arc. The arc PEAK behind 2nd (yp) is fixed; the radius sets how
+    // tight the circle is (smaller radius = tighter, collapsing toward that peak).
+    const yp = c.base * 1.62;                 // grass-line depth behind 2nd (kept)
+    const Rarc = c.base * 1.12;               // tightness — smaller = tighter
+    const cyw = yp - Rarc;                     // circle center (world y)
+    const tt = (cyw + Math.sqrt(Math.max(0, 2 * Rarc * Rarc - cyw * cyw))) / 2; // corner dist along foul lines
+    const Rs = rAt(Rarc);
+    const dirtArc = `M ${f2(P(B.H))} L ${f2(P({ x: tt, y: tt }))} A ${Rs.toFixed(1)} ${Rs.toFixed(1)} 0 0 0 ${f2(P({ x: -tt, y: tt }))} L ${f2(P(B.H))} Z`;
     const foulDirtW = rAt(c.base * 0.13);                  // consistent dirt strip along the foul lines
     // small home-plate dirt circle (encircles the batter's boxes) — a SUBPATH so
     // it unions into the infield-dirt fan as one continuous piece
