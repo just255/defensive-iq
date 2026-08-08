@@ -110,19 +110,19 @@
     const grassIn = roundDia(bs.map(b => P(lerp(b, 0.84))), rAt(c.base * 0.17), true);
     // skinned infield dirt: a fan bounded by the foul lines out past the corner
     // bases, with the grass-line arc sweeping behind ALL three bases.
-    const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(48, c.base * 1.3)))} Q ${f2(P(polar(0, c.base * 2.42)))} ${f2(P(polar(-48, c.base * 1.3)))} L ${f2(P(B.H))} Z`;
+    const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(45, c.base * 1.3)))} Q ${f2(P(polar(0, c.base * 2.42)))} ${f2(P(polar(-45, c.base * 1.3)))} L ${f2(P(B.H))} Z`;
+    const foulDirtW = rAt(c.base * 0.13);                  // consistent dirt strip along the foul lines
     // small home-plate dirt circle (encircles the batter's boxes) — a SUBPATH so
     // it unions into the infield-dirt fan as one continuous piece
-    const hcR = rAt(c.base * 0.16);
-    const cc = P({ x: 0, y: c.base * 0.16 });     // lift the circle so its back edge sits at home (same depth as the foul dirt)
-    const homeCirc = `M ${(cc.x - hcR).toFixed(1)} ${cc.y.toFixed(1)} a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(2 * hcR).toFixed(1)} 0 a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(-2 * hcR).toFixed(1)} 0 Z`;
+    const hcR = rAt(c.base * 0.17);
+    const homeCirc = `M ${(hm.x - hcR).toFixed(1)} ${hm.y.toFixed(1)} a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(2 * hcR).toFixed(1)} 0 a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(-2 * hcR).toFixed(1)} 0 Z`;
     const trackW = rAt(c.base * 0.14);                     // warning-track band width
     // radial mow stripes (subtle alternating light wedges from home)
     const Rmow = Math.max(...w.wall.map(v => Math.hypot(v.x, v.y))) * 1.2, Nmow = 15;
     let mow = '';
     for (let i = 0; i < Nmow; i++) { const a0 = -45 + i * (90 / Nmow), a1 = -45 + (i + 1) * (90 / Nmow); mow += `<path d="M ${pj(B.H)} L ${pj(polar(a0, Rmow))} L ${pj(polar(a1, Rmow))} Z" fill="#eafff4" opacity="${i % 2 ? 0.055 : 0}" clip-path="url(#fair-${gid})"/>`; }
     // batter's boxes flanking home plate (world feet)
-    const bbox = (sx) => { const pts = [[sx*1.7,0.5],[sx*5.2,0.5],[sx*5.2,6.5],[sx*1.7,6.5]].map(([x,y]) => P({x,y})); return `<path d="M ${pts.map(f2).join(' L ')} Z" fill="none" stroke="#eef3f9" stroke-width=".35" opacity=".7"/>`; };
+    const bbox = (sx) => { const pts = [[sx*1.7,-2.5],[sx*5.4,-2.5],[sx*5.4,4],[sx*1.7,4]].map(([x,y]) => P({x,y})); return `<path d="M ${pts.map(f2).join(' L ')} Z" fill="none" stroke="#eef3f9" stroke-width=".35" opacity=".7"/>`; };
     const fld = Object.entries(w.fielders).map(([k, p]) => { const s = P(p); return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.3" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+0.85).toFixed(1)}" text-anchor="middle" font-size="2.3" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`; }).join('');
     const baseSq = ['1B','2B','3B'].map(k => { const s = P(B[k]); return `<rect x="${(s.x-1.2).toFixed(1)}" y="${(s.y-1.2).toFixed(1)}" width="2.4" height="2.4" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`; }).join('');
     const plate = `<path d="M ${(hm.x-1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y+0.4).toFixed(1)} L ${hm.x.toFixed(1)} ${(hm.y+1.6).toFixed(1)} L ${(hm.x-1.3).toFixed(1)} ${(hm.y+0.4).toFixed(1)} Z" fill="#f4f7fb"/>`;
@@ -145,6 +145,9 @@
       <!-- warning track: tan band hugging the outfield wall -->
       <path d="${wallLine}" fill="none" stroke="#a5794c" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/>
       <path d="${wallLine}" fill="none" stroke="#0a1f14" stroke-width="1.6" stroke-linejoin="round"/>
+      <!-- consistent-width dirt strip straight along each foul line (foul pole -> batter's box) -->
+      <path d="${foul(0)}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>
+      <path d="${foul(4)}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>
       <!-- skinned infield dirt as ONE piece: the fan + a small circle at home (batter's boxes) -->
       <path d="${dirtArc} ${homeCirc}" fill="url(#dirt-${gid})"/>
       <!-- inside grass with scalloped base cutouts -->
