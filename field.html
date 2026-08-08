@@ -113,8 +113,9 @@
     const rAt = (ft) => Math.hypot(P({x:0,y:ft}).x - hm.x, P({x:0,y:ft}).y - hm.y);
     const moundR = rAt(c.base * 0.135), homeR = rAt(c.base * 0.2);
     const bs = [B.H, B['1B'], B['2B'], B['3B']];
-    // inside grass comes up close to the bases (each corner scoops inward around the base cutout)
-    const grassIn = roundDia(bs.map(b => P(lerp(b, 0.92))), rAt(c.base * 0.2), true);
+    // inside grass comes up close to the bases: longer straight sides with just a
+    // shallow scoop at each base corner (small backoff = long straights, shallow arc)
+    const grassIn = roundDia(bs.map(b => P(lerp(b, 0.92))), rAt(c.base * 0.11), true);
     // skinned infield dirt: a fan bounded by the foul lines out past the corner bases,
     // grass-line arc behind ALL three bases (corners pushed back for a flatter arc).
     const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(45, c.base * 1.6)))} Q ${f2(P(polar(0, c.base * 2.42)))} ${f2(P(polar(-45, c.base * 1.6)))} L ${f2(P(B.H))} Z`;
