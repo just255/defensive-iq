@@ -52,7 +52,8 @@
       CF: polar(0,  c.fCF * 0.74),
       RF: polar(32, c.fRF * 0.72),
     };
-    const wall = [ polar(-45, c.fLF), polar(-20, c.fLF * 1.04), polar(0, c.fCF), polar(20, c.fRF * 1.04), polar(45, c.fRF) ];
+    const gap = (pole) => pole + (c.fCF - pole) * 0.5;   // gap depth between the pole and center
+    const wall = [ polar(-45, c.fLF), polar(-23, gap(c.fLF)), polar(0, c.fCF), polar(23, gap(c.fRF)), polar(45, c.fRF) ];
     return { bases, fielders, wall, mound: { x: 0, y: c.pitch } };
   }
 
@@ -93,6 +94,19 @@
     return d + ' Z';
   }
 
+  // Smooth curve (Catmull-Rom -> cubic Bezier) through a list of screen points.
+  function smoothPath(pts) {
+    if (pts.length < 3) return 'M ' + pts.map(f2).join(' L ');
+    let d = 'M ' + f2(pts[0]);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
+      const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+      const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+      d += ` C ${f2(c1)} ${f2(c2)} ${f2(p2)}`;
+    }
+    return d;
+  }
+
   // Uniform-width vertical mow stripes, clipped to a given grass shape.
   function mowStripes(clip) {
     const W = 3.3; let s = '';
@@ -107,8 +121,9 @@
     const cen = { x: 0, y: c.base * SQRT1_2 };                 // infield centroid
     const lerp = (b, f) => ({ x: cen.x + (b.x - cen.x) * f, y: cen.y + (b.y - cen.y) * f });
     const diaPath = (f) => 'M ' + [B.H, B['1B'], B['2B'], B['3B']].map(b => pj(lerp(b, f))).join(' L ') + ' Z';
-    const grass = 'M ' + pj(B.H) + ' L ' + w.wall.map(pj).join(' L ') + ' Z';
-    const wallLine = 'M ' + w.wall.map(pj).join(' L ');
+    const wallCurve = smoothPath(w.wall.map(P));          // smooth (curved) outfield fence
+    const grass = `M ${pj(B.H)} L ${wallCurve.replace(/^M /, '')} Z`;
+    const wallLine = wallCurve;
     const foul = (v) => 'M ' + pj(B.H) + ' L ' + pj(w.wall[v]);
     const rAt = (ft) => Math.hypot(P({x:0,y:ft}).x - hm.x, P({x:0,y:ft}).y - hm.y);
     const moundR = rAt(c.base * 0.135), homeR = rAt(c.base * 0.2);
