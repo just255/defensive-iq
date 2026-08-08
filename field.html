@@ -47,13 +47,14 @@
     arc:          { peak: 1.62, radius: 1.12 },        // grass line: depth behind 2nd, circle tightness (smaller = tighter)
     infieldGrass: { scale: 0.92, cutout: 0.11 },       // how close to the bases, base-corner scoop span
     dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.17, mound: 0.135 },
-    wall:         { panels: 6, ease: 1.7 },            // outfield fence: # straight panels, pole->center easing power
+    wall:         { panels: 6, ease: 1.7, depth: 2.2 }, // fence: # straight panels, pole->center easing, wall thickness (viewBox units)
+    foulPole:     { size: 1.4 },                        // foul-pole marker radius (viewBox units)
     mow:          { width: 3.3, opacity: 0.055 },      // mow stripe width (viewBox units) + opacity
     colors: {
       grass:   ['#2c6a46', '#1c4a34', '#123020'],
       infield: ['#347a4f', '#265d3e'],
       dirt:    ['#c8814f', '#7d4526'],
-      track: '#a5794c', wall: '#0a1f14', chalk: '#eef3f9',
+      track: '#a5794c', wall: '#0a1f14', wallTop: '#41684f', chalk: '#eef3f9', foulPole: '#e8c24a',
     },
   };
 
@@ -195,8 +196,9 @@
       </defs>`],
       ['outfield-grass', `<path d="${grass}" fill="url(#grass-${gid})"/>`],
       ['outfield-mow', mowStripes('fair-' + gid)],
-      ['warning-track', `<path d="${wallLine}" fill="none" stroke="${STYLE.colors.track}" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/><path d="${wallLine}" fill="none" stroke="${STYLE.colors.wall}" stroke-width="1.6" stroke-linejoin="round"/>`],
-      ['foul-dirt', `<path d="${foul('L')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/><path d="${foul('R')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>`],
+      ['warning-track', `<path d="${wallLine}" fill="none" stroke="${STYLE.colors.track}" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/>`],
+      ['outfield-wall', `<path d="${wallLine}" fill="none" stroke="${STYLE.colors.wall}" stroke-width="${STYLE.wall.depth}" stroke-linejoin="round" stroke-linecap="round"/><path d="${wallLine}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.7" stroke-linejoin="round" stroke-linecap="round"/>`],
+      ['foul-dirt', `<path d="${foul('L')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="butt"/><path d="${foul('R')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="butt"/>`],
       ['infield-dirt', `<path d="${dirtArc} ${homeCirc}" fill="url(#dirt-${gid})"/>`],
       ['infield-grass', `<path d="${grassIn}" fill="url(#infg-${gid})"/>${mowStripes('infgc-' + gid)}`],
       ['mound', `<circle cx="${mnd.x.toFixed(1)}" cy="${mnd.y.toFixed(1)}" r="${moundR.toFixed(1)}" fill="url(#dirt-${gid})"/>`],
@@ -204,6 +206,7 @@
       ['batter-boxes', `${bbox(-1)}${bbox(1)}`],
       ['bases', `${baseSq}${plate}`],
       ['fielders', fld],
+      ['foul-poles', [w.wall[0], w.wall[w.wall.length - 1]].map(v => { const s = P(v); return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="${STYLE.foulPole.size}" fill="${STYLE.colors.foulPole}" stroke="#3a2e08" stroke-width=".35"/><circle cx="${(s.x - 0.35).toFixed(1)}" cy="${(s.y - 0.35).toFixed(1)}" r="${(STYLE.foulPole.size * 0.4).toFixed(2)}" fill="#fff5cc" opacity=".8"/>`; }).join('')],
       ['throw', thr],
       // (vignette is a CSS overlay on the phone, NOT inside the SVG, so it doesn't
       //  tilt with the field — see .phone::after)
