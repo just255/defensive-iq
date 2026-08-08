@@ -52,8 +52,13 @@
       CF: polar(0,  c.fCF * 0.74),
       RF: polar(32, c.fRF * 0.72),
     };
-    const gap = (pole) => pole + (c.fCF - pole) * 0.5;   // gap depth between the pole and center
-    const wall = [ polar(-45, c.fLF), polar(-23, gap(c.fLF)), polar(0, c.fCF), polar(23, gap(c.fRF)), polar(45, c.fRF) ];
+    // outfield fence = several STRAIGHT panels; depth eases from the poles up to
+    // center so a deep-center park reads as angled panels, not a sharp kite.
+    const wall = [-45, -30, -15, 0, 15, 30, 45].map(a => {
+      const pole = a <= 0 ? c.fLF : c.fRF;
+      const depth = c.fCF - (c.fCF - pole) * Math.pow(Math.abs(a) / 45, 1.7);
+      return polar(a, depth);
+    });
     return { bases, fielders, wall, mound: { x: 0, y: c.pitch } };
   }
 
@@ -121,9 +126,8 @@
     const cen = { x: 0, y: c.base * SQRT1_2 };                 // infield centroid
     const lerp = (b, f) => ({ x: cen.x + (b.x - cen.x) * f, y: cen.y + (b.y - cen.y) * f });
     const diaPath = (f) => 'M ' + [B.H, B['1B'], B['2B'], B['3B']].map(b => pj(lerp(b, f))).join(' L ') + ' Z';
-    const wallCurve = smoothPath(w.wall.map(P));          // smooth (curved) outfield fence
-    const grass = `M ${pj(B.H)} L ${wallCurve.replace(/^M /, '')} Z`;
-    const wallLine = wallCurve;
+    const grass = 'M ' + pj(B.H) + ' L ' + w.wall.map(pj).join(' L ') + ' Z';
+    const wallLine = 'M ' + w.wall.map(pj).join(' L ');
     const foul = (v) => 'M ' + pj(B.H) + ' L ' + pj(w.wall[v]);
     const rAt = (ft) => Math.hypot(P({x:0,y:ft}).x - hm.x, P({x:0,y:ft}).y - hm.y);
     const moundR = rAt(c.base * 0.135), homeR = rAt(c.base * 0.2);
