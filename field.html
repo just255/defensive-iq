@@ -93,6 +93,13 @@
     return d + ' Z';
   }
 
+  // Uniform-width vertical mow stripes, clipped to a given grass shape.
+  function mowStripes(clip) {
+    const W = 3.3; let s = '';
+    for (let x = -3; x < VB.w; x += 2 * W) s += `<rect x="${x.toFixed(1)}" y="0" width="${W}" height="${VB.h}" fill="#eafff4" opacity=".055" clip-path="url(#${clip})"/>`;
+    return s;
+  }
+
   function fieldSVG(cfgKey, mode, showThrow) {
     const c = CFG[cfgKey], w = buildWorld(c), P = makeProject(w, mode), gid = 'g' + cfgKey + mode;
     const pj = (p) => { const s = P(p); return s.x.toFixed(1) + ',' + s.y.toFixed(1); };
@@ -106,21 +113,17 @@
     const rAt = (ft) => Math.hypot(P({x:0,y:ft}).x - hm.x, P({x:0,y:ft}).y - hm.y);
     const moundR = rAt(c.base * 0.135), homeR = rAt(c.base * 0.2);
     const bs = [B.H, B['1B'], B['2B'], B['3B']];
-    // inside grass is a crisp diamond, but each corner scoops inward around the base (the cutout)
-    const grassIn = roundDia(bs.map(b => P(lerp(b, 0.84))), rAt(c.base * 0.17), true);
-    // skinned infield dirt: a fan bounded by the foul lines out past the corner
-    // bases, with the grass-line arc sweeping behind ALL three bases.
-    const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(45, c.base * 1.3)))} Q ${f2(P(polar(0, c.base * 2.42)))} ${f2(P(polar(-45, c.base * 1.3)))} L ${f2(P(B.H))} Z`;
+    // inside grass comes up close to the bases (each corner scoops inward around the base cutout)
+    const grassIn = roundDia(bs.map(b => P(lerp(b, 0.92))), rAt(c.base * 0.2), true);
+    // skinned infield dirt: a fan bounded by the foul lines out past the corner bases,
+    // grass-line arc behind ALL three bases (corners pushed back for a flatter arc).
+    const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(45, c.base * 1.6)))} Q ${f2(P(polar(0, c.base * 2.42)))} ${f2(P(polar(-45, c.base * 1.6)))} L ${f2(P(B.H))} Z`;
     const foulDirtW = rAt(c.base * 0.13);                  // consistent dirt strip along the foul lines
     // small home-plate dirt circle (encircles the batter's boxes) — a SUBPATH so
     // it unions into the infield-dirt fan as one continuous piece
     const hcR = rAt(c.base * 0.17);
     const homeCirc = `M ${(hm.x - hcR).toFixed(1)} ${hm.y.toFixed(1)} a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(2 * hcR).toFixed(1)} 0 a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(-2 * hcR).toFixed(1)} 0 Z`;
     const trackW = rAt(c.base * 0.14);                     // warning-track band width
-    // radial mow stripes (subtle alternating light wedges from home)
-    const Rmow = Math.max(...w.wall.map(v => Math.hypot(v.x, v.y))) * 1.2, Nmow = 15;
-    let mow = '';
-    for (let i = 0; i < Nmow; i++) { const a0 = -45 + i * (90 / Nmow), a1 = -45 + (i + 1) * (90 / Nmow); mow += `<path d="M ${pj(B.H)} L ${pj(polar(a0, Rmow))} L ${pj(polar(a1, Rmow))} Z" fill="#eafff4" opacity="${i % 2 ? 0.055 : 0}" clip-path="url(#fair-${gid})"/>`; }
     // batter's boxes flanking home plate (world feet)
     const bbox = (sx) => { const pts = [[sx*1.7,-2.5],[sx*5.4,-2.5],[sx*5.4,4],[sx*1.7,4]].map(([x,y]) => P({x,y})); return `<path d="M ${pts.map(f2).join(' L ')} Z" fill="none" stroke="#eef3f9" stroke-width=".35" opacity=".7"/>`; };
     const fld = Object.entries(w.fielders).map(([k, p]) => { const s = P(p); return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.3" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+0.85).toFixed(1)}" text-anchor="middle" font-size="2.3" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`; }).join('');
@@ -139,9 +142,10 @@
         <linearGradient id="dirt-${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c8814f"/><stop offset="100%" stop-color="#7d4526"/></linearGradient>
         <radialGradient id="vig-${gid}" cx="50%" cy="58%" r="72%"><stop offset="58%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".42"/></radialGradient>
         <clipPath id="fair-${gid}"><path d="${grass}"/></clipPath>
+        <clipPath id="infgc-${gid}"><path d="${grassIn}"/></clipPath>
       </defs>
       <path d="${grass}" fill="url(#grass-${gid})"/>
-      ${mow}
+      ${mowStripes('fair-' + gid)}
       <!-- warning track: tan band hugging the outfield wall -->
       <path d="${wallLine}" fill="none" stroke="#a5794c" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/>
       <path d="${wallLine}" fill="none" stroke="#0a1f14" stroke-width="1.6" stroke-linejoin="round"/>
@@ -150,8 +154,9 @@
       <path d="${foul(4)}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>
       <!-- skinned infield dirt as ONE piece: the fan + a small circle at home (batter's boxes) -->
       <path d="${dirtArc} ${homeCirc}" fill="url(#dirt-${gid})"/>
-      <!-- inside grass with scalloped base cutouts -->
+      <!-- inside grass with scalloped base cutouts + matching mow stripes -->
       <path d="${grassIn}" fill="url(#infg-${gid})"/>
+      ${mowStripes('infgc-' + gid)}
       <!-- pitcher's mound -->
       <circle cx="${mnd.x.toFixed(1)}" cy="${mnd.y.toFixed(1)}" r="${moundR.toFixed(1)}" fill="url(#dirt-${gid})"/>
       <path d="${foul(0)}" stroke="#eef3f9" stroke-width=".45" opacity=".6" fill="none"/>
