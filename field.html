@@ -128,7 +128,7 @@
     const diaPath = (f) => 'M ' + [B.H, B['1B'], B['2B'], B['3B']].map(b => pj(lerp(b, f))).join(' L ') + ' Z';
     const grass = 'M ' + pj(B.H) + ' L ' + w.wall.map(pj).join(' L ') + ' Z';
     const wallLine = 'M ' + w.wall.map(pj).join(' L ');
-    const foul = (v) => 'M ' + pj(B.H) + ' L ' + pj(w.wall[v]);
+    const foul = (side) => 'M ' + pj(B.H) + ' L ' + pj(side === 'R' ? w.wall[w.wall.length - 1] : w.wall[0]);
     const rAt = (ft) => Math.hypot(P({x:0,y:ft}).x - hm.x, P({x:0,y:ft}).y - hm.y);
     const moundR = rAt(c.base * 0.135), homeR = rAt(c.base * 0.2);
     const bs = [B.H, B['1B'], B['2B'], B['3B']];
@@ -161,37 +161,33 @@
       thr = `<path d="M ${chain.map(s=>s.x.toFixed(1)+','+s.y.toFixed(1)).join(' L ')}" fill="none" stroke="var(--gold)" stroke-width="1.1" stroke-dasharray="3 2"/>` +
         chain.map(s=>`<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="1.5" fill="var(--gold)"/>`).join('');
     }
-    return `<svg viewBox="0 0 ${VB.w} ${VB.h}" preserveAspectRatio="xMidYMid meet">
-      <defs>
+    // ---- the field is composed of independent, named layers, drawn in order ----
+    // Reorder / add / remove a layer here; each is self-contained.
+    const layers = [
+      ['defs', `<defs>
         <radialGradient id="grass-${gid}" cx="50%" cy="82%" r="95%"><stop offset="0%" stop-color="#2c6a46"/><stop offset="55%" stop-color="#1c4a34"/><stop offset="100%" stop-color="#123020"/></radialGradient>
         <radialGradient id="infg-${gid}" cx="50%" cy="72%" r="80%"><stop offset="0%" stop-color="#347a4f"/><stop offset="100%" stop-color="#265d3e"/></radialGradient>
         <linearGradient id="dirt-${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c8814f"/><stop offset="100%" stop-color="#7d4526"/></linearGradient>
         <radialGradient id="vig-${gid}" cx="50%" cy="58%" r="72%"><stop offset="58%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".42"/></radialGradient>
         <clipPath id="fair-${gid}"><path d="${grass}"/></clipPath>
         <clipPath id="infgc-${gid}"><path d="${grassIn}"/></clipPath>
-      </defs>
-      <path d="${grass}" fill="url(#grass-${gid})"/>
-      ${mowStripes('fair-' + gid)}
-      <!-- warning track: tan band hugging the outfield wall -->
-      <path d="${wallLine}" fill="none" stroke="#a5794c" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/>
-      <path d="${wallLine}" fill="none" stroke="#0a1f14" stroke-width="1.6" stroke-linejoin="round"/>
-      <!-- consistent-width dirt strip straight along each foul line (foul pole -> batter's box) -->
-      <path d="${foul(0)}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>
-      <path d="${foul(4)}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>
-      <!-- skinned infield dirt as ONE piece: the fan + a small circle at home (batter's boxes) -->
-      <path d="${dirtArc} ${homeCirc}" fill="url(#dirt-${gid})"/>
-      <!-- inside grass with scalloped base cutouts + matching mow stripes -->
-      <path d="${grassIn}" fill="url(#infg-${gid})"/>
-      ${mowStripes('infgc-' + gid)}
-      <!-- pitcher's mound -->
-      <circle cx="${mnd.x.toFixed(1)}" cy="${mnd.y.toFixed(1)}" r="${moundR.toFixed(1)}" fill="url(#dirt-${gid})"/>
-      <path d="${foul(0)}" stroke="#eef3f9" stroke-width=".45" opacity=".6" fill="none"/>
-      <path d="${foul(4)}" stroke="#eef3f9" stroke-width=".45" opacity=".6" fill="none"/>
-      ${bbox(-1)}${bbox(1)}
-      ${baseSq}${plate}
-      ${fld}
-      ${thr}
-      <rect x="0" y="0" width="${VB.w}" height="${VB.h}" fill="url(#vig-${gid})" pointer-events="none"/>
+      </defs>`],
+      ['outfield-grass', `<path d="${grass}" fill="url(#grass-${gid})"/>`],
+      ['outfield-mow', mowStripes('fair-' + gid)],
+      ['warning-track', `<path d="${wallLine}" fill="none" stroke="#a5794c" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/><path d="${wallLine}" fill="none" stroke="#0a1f14" stroke-width="1.6" stroke-linejoin="round"/>`],
+      ['foul-dirt', `<path d="${foul('L')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/><path d="${foul('R')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="round"/>`],
+      ['infield-dirt', `<path d="${dirtArc} ${homeCirc}" fill="url(#dirt-${gid})"/>`],
+      ['infield-grass', `<path d="${grassIn}" fill="url(#infg-${gid})"/>${mowStripes('infgc-' + gid)}`],
+      ['mound', `<circle cx="${mnd.x.toFixed(1)}" cy="${mnd.y.toFixed(1)}" r="${moundR.toFixed(1)}" fill="url(#dirt-${gid})"/>`],
+      ['foul-lines', `<path d="${foul('L')}" stroke="#eef3f9" stroke-width=".45" opacity=".6" fill="none"/><path d="${foul('R')}" stroke="#eef3f9" stroke-width=".45" opacity=".6" fill="none"/>`],
+      ['batter-boxes', `${bbox(-1)}${bbox(1)}`],
+      ['bases', `${baseSq}${plate}`],
+      ['fielders', fld],
+      ['throw', thr],
+      ['vignette', `<rect x="0" y="0" width="${VB.w}" height="${VB.h}" fill="url(#vig-${gid})" pointer-events="none"/>`],
+    ];
+    return `<svg viewBox="0 0 ${VB.w} ${VB.h}" preserveAspectRatio="xMidYMid meet">
+      ${layers.map(([name, svg]) => '<!-- ' + name + ' -->' + svg).join('\n      ')}
     </svg>`;
   }
 
