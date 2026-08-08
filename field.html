@@ -93,7 +93,7 @@
     const worldW = halfW * 2, worldH = maxY - minY;
     const drawW = VB.w - 2 * VB.padX, drawH = VB.h - VB.padTop - VB.padBottom;
     const fit = Math.min(drawW / worldW, drawH / worldH);
-    const S = (mode === 'fill') ? Math.max(drawW / worldW, drawH / worldH) : fit * 1.32; // zoom so infield is big
+    const S = (mode === 'fill') ? Math.max(drawW / worldW, drawH / worldH) : fit; // whole field always fits — never crop; the tilt enlarges the infield
     const cx = VB.w / 2;
     const baseY = VB.h - VB.padBottom - (0 - minY) * S;  // anchor home near the bottom
     return (p) => ({ x: cx + p.x * S, y: baseY - p.y * S });
