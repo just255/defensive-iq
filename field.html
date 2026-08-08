@@ -116,9 +116,10 @@
     // inside grass comes up close to the bases: longer straight sides with just a
     // shallow scoop at each base corner (small backoff = long straights, shallow arc)
     const grassIn = roundDia(bs.map(b => P(lerp(b, 0.92))), rAt(c.base * 0.11), true);
-    // skinned infield dirt: a fan bounded by the foul lines out past the corner bases,
-    // grass-line arc behind ALL three bases (corners pushed back for a flatter arc).
-    const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(45, c.base * 1.6)))} Q ${f2(P(polar(0, c.base * 2.42)))} ${f2(P(polar(-45, c.base * 1.6)))} L ${f2(P(B.H))} Z`;
+    // skinned infield dirt: a circular sector — foul lines out to the corners, then a
+    // TRUE circular grass-line arc (centered at home, radius = the corner distance).
+    const Rarc = c.base * 1.62, Rs = rAt(Rarc);
+    const dirtArc = `M ${f2(P(B.H))} L ${f2(P(polar(45, Rarc)))} A ${Rs.toFixed(1)} ${Rs.toFixed(1)} 0 0 0 ${f2(P(polar(-45, Rarc)))} L ${f2(P(B.H))} Z`;
     const foulDirtW = rAt(c.base * 0.13);                  // consistent dirt strip along the foul lines
     // small home-plate dirt circle (encircles the batter's boxes) — a SUBPATH so
     // it unions into the infield-dirt fan as one continuous piece
