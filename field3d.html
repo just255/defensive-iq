@@ -49,7 +49,7 @@
     infieldGrass: { scale: 0.92, cutout: 0.11 },
     dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135, moundHeightFt: 0.04 },
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
-    foulPole:     { heightFt: 30, screenFt: 0.06 },   // screen panel width jutting into fair (fraction of base)
+    foulPole:     { heightFt: 30, screenFt: 0.045 },   // screen panel width jutting into fair (fraction of base)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
@@ -186,7 +186,7 @@
       const vi = { x: v.x + n.x*screenFt, y: v.y + n.y*screenFt };
       const s0=P({x:v.x,y:v.y,z:zB}), s1=P({x:v.x,y:v.y,z:zT}), s2=P({x:vi.x,y:vi.y,z:zT}), s3=P({x:vi.x,y:vi.y,z:zB});
       const screen = `<path d="M ${pl(s0)} L ${pl(s1)} L ${pl(s2)} L ${pl(s3)} Z" fill="${STYLE.colors.foulPole}" opacity=".92"/>`;
-      const shaft = `<line x1="${b.x.toFixed(1)}" y1="${b.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" stroke="${STYLE.colors.foulPole}" stroke-width="0.9" stroke-linecap="round"/>`;
+      const shaft = `<line x1="${b.x.toFixed(1)}" y1="${b.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" stroke="${STYLE.colors.foulPole}" stroke-width="0.4" stroke-linecap="round"/>`;
       return screen + shaft;
     };
 
