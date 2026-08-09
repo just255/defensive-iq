@@ -148,8 +148,11 @@
      and there's room above for the future editable outfield wall. ---- */
   .fieldwrap { position: absolute; inset: 0; overflow: hidden;
     background: radial-gradient(80% 55% at 50% 34%, rgba(150,190,220,.08), transparent 62%), var(--sky); }
-  svg.field { position: absolute; top: var(--field-top, 84px); left: 50%; width: 100%; height: auto; max-height: none;
-    transform: translateX(-50%); }
+  /* perspective tilt: pivots near home so the infield foreground enlarges and
+     the outfield foreshortens/recedes (the "LL tilted" look). Field + actors
+     live in one SVG, so they tilt together and stay aligned. */
+  svg.field { position: absolute; top: var(--field-top, 70px); left: 50%; width: 100%; height: auto; max-height: none;
+    transform: translateX(-50%) perspective(940px) rotateX(18deg); transform-origin: 50% 78%; }
 
   .prompt { text-align: center; font-family: var(--font-display); text-transform: uppercase; letter-spacing: .1em; font-size: 12px; color: var(--muted); margin: 12px 0 8px; }
 
@@ -682,7 +685,7 @@
   }
   // viewBox is the game's field SVG (100x118); fit the whole field into it with
   // home near the bottom, so the fitted field drops into the game's field area.
-  const VB = { w: 100, h: 118, padX: 4, padTop: 14, padBottom: 24 };
+  const VB = { w: 100, h: 118, padX: 9, padTop: 14, padBottom: 24 };
   function makeProject(w) {
     const pts = [...w.wall, ...Object.values(w.fielders), ...Object.values(w.bases)];
     const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
@@ -784,6 +787,11 @@
       Object.values(sc.resolve || {}).forEach((r) => (r.ball || []).forEach(mut));
       (sc.movers || []).forEach((m) => mut(m[1]));
     });
+    // The old outfielder coords were placed for the old SHALLOW field; the
+    // similarity above just carried that shallowness forward, so LF/CF/RF sat
+    // right on top of the infield. Put them at their true to-scale depth from
+    // the world model instead — they start deep and charge in on the play.
+    ['LF', 'CF', 'RF'].forEach((k) => { const p = P(w.fielders[k]); POS[k][0] = +p.x.toFixed(2); POS[k][1] = +p.y.toFixed(2); });
   })();
 
   // Pre-pitch coaching, per scenario: a punchy CALL + a three-line read that
