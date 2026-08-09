@@ -225,13 +225,17 @@
       <defs>
         <radialGradient id="grassg" cx="50%" cy="78%" r="95%"><stop offset="0%" stop-color="${STYLE.colors.grass[0]}"/><stop offset="55%" stop-color="${STYLE.colors.grass[1]}"/><stop offset="100%" stop-color="${STYLE.colors.grass[2]}"/></radialGradient>
         <radialGradient id="infg" cx="50%" cy="70%" r="80%"><stop offset="0%" stop-color="${STYLE.colors.infield[0]}"/><stop offset="100%" stop-color="${STYLE.colors.infield[1]}"/></radialGradient>
-        <linearGradient id="dirtg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
+        <linearGradient id="dirtg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${VB.h}"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
         <linearGradient id="wallface" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.wallTop}"/><stop offset="14%" stop-color="${STYLE.colors.wallFace}"/><stop offset="100%" stop-color="${STYLE.colors.wall}"/></linearGradient>
         <radialGradient id="moundg" cx="42%" cy="36%" r="72%"><stop offset="0%" stop-color="#d9955f"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></radialGradient>
         <clipPath id="outgrass"><path d="${outGrass}"/></clipPath>
       </defs>
-      <!-- GROUND LAYER: dirt is ONE continuous shape (whole fair + home-plate dirt) -->
-      <path d="${grass} ${homeCircle}" fill="url(#dirtg)"/>
+      <!-- GROUND LAYER: dirt. Separate SOLID paths (fair fan + home-plate dirt)
+           sharing ONE userSpaceOnUse gradient — so overlapping subpaths can't
+           cancel into a see-through hole, and every dirt region samples the same
+           gradient (no region-to-region colour seam). -->
+      <path d="${grass}" fill="url(#dirtg)"/>
+      <path d="${homeCircle}" fill="url(#dirtg)"/>
       <!-- GRASS grows on top of the dirt (outfield); what it leaves uncovered IS the
            warning track + foul strips + infield skin — one connected dirt, one colour -->
       <path d="${outGrass}" fill="url(#grassg)"/>
