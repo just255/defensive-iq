@@ -7,35 +7,37 @@
 <style>
   :root { color-scheme: dark; --sky:#0b1120; --ink:#cfe0f5; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #070c16; color: var(--ink); font: 13px/1.45 'Bahnschrift','Arial Narrow',system-ui,sans-serif; padding: 18px; }
-  h1 { font-size: 15px; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 4px; }
-  p.sub { color: #8ea6c8; max-width: 640px; margin: 0 0 16px; font-size: 12px; }
-  .wrap { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-  .phone { position: relative; width: 340px; height: 424px; border-radius: 22px; overflow: hidden;
-    background: radial-gradient(90% 60% at 50% 30%, rgba(150,190,220,.10), transparent 62%), var(--sky);
-    border: 1px solid #1e2c46; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
-  .phone svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .phone::after { content:''; position:absolute; inset:0; pointer-events:none;
-    background: radial-gradient(72% 62% at 50% 46%, transparent 58%, rgba(0,0,0,.42)); }
-  /* camera panel */
-  .cam { width: 268px; background: rgba(11,18,32,.97); border: 1px solid #2a3a55; border-radius: 12px; padding: 12px 14px; }
-  .cam .ttl { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7fd0a3; font-size: 11px; margin-bottom: 8px; }
-  .cam label { display: grid; grid-template-columns: 72px 1fr 48px; align-items: center; gap: 7px; margin: 6px 0; }
-  .cam label > span { color: #93a7c4; font-size: 11px; }
-  .cam input[type=range] { width: 100%; accent-color: #26c565; }
-  .cam b { text-align: right; font-variant-numeric: tabular-nums; color: #e8c24a; }
-  .cam .row { display: flex; gap: 7px; margin-top: 10px; }
-  .cam button { flex: 1; background: #1c2f4f; color: #fff; border: 1px solid #2a3a55; border-radius: 6px; padding: 7px; cursor: pointer; font: inherit; }
-  .cam pre { margin: 9px 0 0; padding: 7px; background: #060b16; border-radius: 6px; white-space: pre-wrap; word-break: break-word; font: 10px/1.4 ui-monospace,monospace; color: #8ea6c8; }
+  html, body { margin: 0; height: 100%; }
+  body { background: #070c16; color: var(--ink); font: 13px/1.4 'Bahnschrift','Arial Narrow',system-ui,sans-serif; overflow: hidden; }
+  /* full-screen field, like the game */
+  .stage { position: relative; width: 100%; max-width: 520px; height: 100dvh; margin: 0 auto; overflow: hidden;
+    background: radial-gradient(90% 55% at 50% 26%, rgba(150,190,220,.10), transparent 62%), var(--sky); }
+  svg#fld { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .stage::after { content:''; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(78% 60% at 50% 52%, transparent 60%, rgba(0,0,0,.40)); }
+
+  /* 🎥 toggle + overlay camera panel (same pattern as the game) */
+  #camtoggle { position: fixed; top: 14px; right: 14px; z-index: 70; width: 42px; height: 42px; border-radius: 50%;
+    border: 1px solid #2a3a55; background: rgba(20,35,63,.92); color: #fff; font-size: 19px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  #campanel { position: fixed; top: 62px; right: 14px; z-index: 70; width: 250px; max-width: calc(100vw - 28px);
+    background: rgba(11,18,32,.97); border: 1px solid #2a3a55; border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 38px rgba(0,0,0,.6); }
+  #campanel .ttl { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7fd0a3; font-size: 11px; margin-bottom: 8px; }
+  #campanel label { display: grid; grid-template-columns: 56px 1fr 40px 22px; align-items: center; gap: 6px; margin: 7px 0; }
+  #campanel label > span { color: #93a7c4; font-size: 11px; }
+  #campanel input[type=range] { width: 100%; accent-color: #26c565; }
+  #campanel b { text-align: right; font-variant-numeric: tabular-nums; color: #e8c24a; }
+  #campanel .rst { padding: 0; width: 22px; height: 20px; line-height: 1; font-size: 12px; background: #12213b; border: 1px solid #2a3a55; border-radius: 5px; color: #9db4d6; cursor: pointer; }
+  #campanel .rst:active { background: #26c565; color: #05130b; }
+  #campanel .presets { display: flex; gap: 6px; margin-bottom: 9px; }
+  #campanel .pset { flex: 1; background: #16273f; color: #cfe0f5; border: 1px solid #2a3a55; border-radius: 6px; padding: 6px 4px; font: inherit; font-size: 11px; cursor: pointer; }
+  #campanel .pset:active { background: #26c565; color: #05130b; }
+  #campanel .row { display: flex; gap: 7px; margin-top: 10px; }
+  #campanel button { flex: 1; background: #1c2f4f; color: #fff; border: 1px solid #2a3a55; border-radius: 6px; padding: 7px; cursor: pointer; font: inherit; }
+  #campanel pre { margin: 9px 0 0; padding: 7px; background: #060b16; border-radius: 6px; white-space: pre-wrap; word-break: break-word; font: 10px/1.4 ui-monospace,monospace; color: #8ea6c8; }
 </style>
 </head>
 <body>
-  <h1>Field 2.5D — real camera, standing wall + poles</h1>
-  <p class="sub">The CSS tilt is gone. Instead every point carries real height (feet), and a single <b>camera projection</b> maps world <b>(x, y, z)</b> → screen with pitch + perspective baked in. Tilt the camera back and the wall &amp; foul poles <b>stand up</b> — because the projection knows about height, not because we faked it. Fielders/bases are flat ground markers for now (billboards + real ball arc come next).</p>
-  <div class="wrap">
-    <div class="phone"><svg id="fld" viewBox="0 0 100 124" preserveAspectRatio="xMidYMid meet"></svg></div>
-    <div class="cam" id="cam"></div>
-  </div>
+  <div class="stage"><svg id="fld" viewBox="0 0 100 200" preserveAspectRatio="xMidYMid meet"></svg></div>
 
 <script>
   const SQRT1_2 = Math.SQRT1_2;
@@ -46,8 +48,8 @@
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
     dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135 },
-    wall:         { panels: 6, ease: 1.7, heightFt: 8 },   // NEW: real wall height in feet
-    foulPole:     { heightFt: 26 },                        // NEW: real pole height in feet
+    wall:         { panels: 6, ease: 1.7, heightFt: 12 },
+    foulPole:     { heightFt: 30 },
     mow:          { width: 3.3, opacity: 0.055 },
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
@@ -72,7 +74,6 @@
     return { bases, fielders, wall, mound:{x:0,y:c.pitch} };
   }
 
-  // small vector helpers + rounded-diamond (for the infield grass corners)
   const vsub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}), vadd=(a,b)=>({x:a.x+b.x,y:a.y+b.y}), vmul=(a,s)=>({x:a.x*s,y:a.y*s});
   const vnorm=a=>{const m=Math.hypot(a.x,a.y)||1;return{x:a.x/m,y:a.y/m};};
   const f2 = p => p.x.toFixed(1)+' '+p.y.toFixed(1);
@@ -89,30 +90,24 @@
     return d+' Z';
   }
 
-  const VB = { w:100, h:124, padX:7, padTop:8, padBottom:12 };
+  // viewBox is set to the stage's aspect at runtime (fitViewport) so the field
+  // fills the whole screen with no letterbox; the projection anchors home near
+  // the bottom with sky above.
+  const VB = { w:100, h:200, padX:7, padTop:8, padBottom:14 };
 
-  // ---- THE CAMERA: world (x=right, y=depth toward CF, z=up/height in feet) → screen.
-  //      pitch 0 = straight overhead (wall shows no height); larger = tilt back so
-  //      height rises on screen. k = perspective strength (0 = parallel/oblique). ----
-  // world (x=right, y=depth toward CF, z=up/height, all feet) -> raw screen axes.
-  //   up   = y·cos(pitch) + z·sin(pitch)   -> tilt back (bigger pitch) compresses
-  //          depth and RAISES height: at pitch 0 (overhead) z adds nothing; the
-  //          wall lies flat. As pitch grows, z·sin(pitch) stands the wall up.
-  //   conv = depth convergence (perspective): farther (deeper y) shrinks toward
-  //          the vanishing point. k=0 -> parallel/oblique. Height doesn't change
-  //          conv, so a wall extrudes as a clean vertical from its own footprint.
+  // world (x=right, y=depth toward CF, z=up/height, feet) -> raw screen axes.
+  //   up   = y·cos(pitch) + z·sin(pitch)  -> tilt back raises height (0 at overhead)
+  //   conv = depth convergence (perspective); height doesn't change conv, so a
+  //          wall extrudes as a clean vertical from its own footprint.
   const rawAt = (pt, cP, sP, k) => {
     const z = pt.z || 0;
     const up = pt.y * cP + z * sP;
     const conv = 1 / Math.max(1 + pt.y * k, 0.3);
     return { X: pt.x * conv, Y: up * conv };
   };
-  // The base scale + anchor are computed ONCE (fit at the reference pitch) and
-  // then held FIXED. That's the fix: an auto-fit that re-ran every frame silently
-  // scaled the wall's height back down, so tilting did nothing. With a fixed base,
-  // tilting the camera genuinely stands the wall UP. Home (world origin) is the
-  // anchor, pinned near the bottom so the view pivots around the plate; zoom
-  // scales the base, pan offsets it.
+  // Base scale + anchor are computed ONCE per fit (reference pitch) and held
+  // FIXED, so tilting genuinely stands the wall UP instead of an auto-fit
+  // scaling its height back down. Home (origin) is the pivot, pinned near bottom.
   let BASE = null;
   function computeBase() {
     const w = buildWorld(CFG.LL);
@@ -128,12 +123,16 @@
   }
   function makeCamera(w, cam) {
     const p = cam.pitch*Math.PI/180, cP = Math.cos(p), sP = Math.sin(p), k = cam.k;
+    const y = (cam.yaw||0)*Math.PI/180, cY = Math.cos(y), sY = Math.sin(y);
     const S = BASE.S0 * cam.zoom, cx = VB.w/2 + cam.panX, homeY = BASE.homeY0 + cam.panY;
-    return (pt) => { const r = rawAt(pt, cP, sP, k); return { x: cx + r.X*S, y: homeY - r.Y*S }; };
+    return (pt) => {
+      // yaw: orbit the camera around home (vertical axis) before the pitch projection
+      const rx = pt.x*cY - pt.y*sY, ry = pt.x*sY + pt.y*cY;
+      const r = rawAt({ x: rx, y: ry, z: pt.z }, cP, sP, k);
+      return { x: cx + r.X*S, y: homeY - r.Y*S };
+    };
   }
 
-  // sample helpers (curves must be projected point-by-point, not via SVG arcs,
-  // because perspective turns circles into non-elliptical curves)
   const arcPts = (cxw,cyw,r,a0,a1,n) => Array.from({length:n+1},(_,i)=>{const a=a0+(a1-a0)*i/n;return{x:cxw+r*Math.cos(a),y:cyw+r*Math.sin(a)};});
   const circPts = (cxw,cyw,r,n) => Array.from({length:n},(_,i)=>{const a=2*Math.PI*i/n;return{x:cxw+r*Math.cos(a),y:cyw+r*Math.sin(a)};});
 
@@ -145,15 +144,12 @@
     const cen = { x:0, y:c.base*SQRT1_2 };
     const lerp = (b,f) => ({ x: cen.x+(b.x-cen.x)*f, y: cen.y+(b.y-cen.y)*f });
 
-    // ground: outfield grass fan (home -> straight wall panels -> home)
     const grass = path([B.H, ...w.wall]) + ' Z';
-    // infield dirt fan: home -> right corner -> circular grass-line arc -> left corner -> home
     const yp=c.base*STYLE.arc.peak, Rarc=c.base*STYLE.arc.radius, cyw=yp-Rarc;
     const tt=(cyw+Math.sqrt(Math.max(0,2*Rarc*Rarc-cyw*cyw)))/2;
     const thR=Math.atan2(tt-cyw,tt), thL=Math.atan2(tt-cyw,-tt);
     const arc=arcPts(0,cyw,Rarc,thR,thL,26);
     const dirtFan = path([B.H,{x:tt,y:tt},...arc,B.H]) + ' Z';
-    // screen-space widths for strokes that were fractions of base distance
     const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
     const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
     const homeCircle = path(circPts(0,0,c.base*STYLE.dirt.homeCircle,24)) + ' Z';
@@ -165,7 +161,6 @@
     const hm = P(B.H);
     const plate = `M ${(hm.x-1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} L ${hm.x.toFixed(1)} ${(hm.y+1.6).toFixed(1)} L ${(hm.x-1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} Z`;
 
-    // ---- the standing wall: one quad face per panel (bottom z0 -> top zH) ----
     let faces = '';
     for (let i=0;i<w.wall.length-1;i++){
       const a=w.wall[i], b=w.wall[i+1];
@@ -173,15 +168,12 @@
       faces += `<path d="${path(quad)} Z" fill="url(#wallface)" stroke="none"/>`;
     }
     const topEdge = path(w.wall.map(v=>({...v,z:H})));
-    // ---- foul poles: tall verticals at the two corners (base z0 -> top zPH) ----
     const pole = v => { const b=P({...v,z:0}), t=P({...v,z:PH});
       return `<line x1="${b.x.toFixed(1)}" y1="${b.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" stroke="${STYLE.colors.foulPole}" stroke-width="1.3" stroke-linecap="round"/><circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="1.5" fill="${STYLE.colors.foulPole}"/>`; };
 
-    // fielders + bases as flat ground markers (z=0) for reference
     const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
     const baseSq = ['1B','2B','3B'].map(k=>{const s=P(B[k]);return `<rect x="${(s.x-1.1).toFixed(1)}" y="${(s.y-1.1).toFixed(1)}" width="2.2" height="2.2" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`;}).join('');
 
-    // vertical mow stripes (screen space) clipped to the projected grass
     let mow=''; const MW=STYLE.mow.width;
     for(let x=-3;x<VB.w;x+=2*MW) mow+=`<rect x="${x.toFixed(1)}" y="0" width="${MW}" height="${VB.h}" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#fair)"/>`;
 
@@ -193,14 +185,11 @@
         <linearGradient id="wallface" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.wallTop}"/><stop offset="14%" stop-color="${STYLE.colors.wallFace}"/><stop offset="100%" stop-color="${STYLE.colors.wall}"/></linearGradient>
         <clipPath id="fair"><path d="${grass}"/></clipPath>
       </defs>
-      <!-- ground -->
       <path d="${grass}" fill="url(#grassg)"/>
       ${mow}
       <path d="${grass}" fill="none" stroke="${STYLE.colors.track}" stroke-width="${trackW.toFixed(1)}" stroke-linejoin="round" clip-path="url(#fair)" opacity=".9"/>
-      <!-- STANDING wall (faces + lit top edge), drawn behind the infield -->
       ${faces}
       <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
-      <!-- infield ground -->
       <path d="${foulL}" fill="none" stroke="url(#dirtg)" stroke-width="${foulW.toFixed(1)}" stroke-linecap="butt"/>
       <path d="${foulR}" fill="none" stroke="url(#dirtg)" stroke-width="${foulW.toFixed(1)}" stroke-linecap="butt"/>
       <path d="${dirtFan} ${homeCircle}" fill="url(#dirtg)"/>
@@ -213,18 +202,33 @@
       <path d="${plate}" fill="#f4f7fb"/>
       ${baseSq}
       ${fld}
-      <!-- foul poles tower above the wall corners -->
       ${pole(w.wall[0])}${pole(w.wall[w.wall.length-1])}
     `;
   }
 
-  // ---- camera state + panel ----
-  const DEF = { pitch: 44, k: 0.0022, zoom: 1, wallH: 12, poleH: 30, panX: 0, panY: 0 };
+  // ---- camera state ----
+  const DEF = { pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: 12, poleH: 30, panX: 0, panY: 0 };
   const cam = { ...DEF };
-  computeBase();
+  // quick-look presets (starting points; fine-tune from any of them)
+  const PRESETS = {
+    'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   wallH: 8,  poleH: 26, panX: 0, panY: 0 },
+    'Tilted':    { pitch: 46, yaw: 0, k: 0.003,  zoom: 1.1, wallH: 12, poleH: 30, panX: 0, panY: 0 },
+    'Broadcast': { pitch: 62, yaw: 0, k: 0.006,  zoom: 1.7, wallH: 14, poleH: 34, panX: 0, panY: -18 },
+  };
   const svg = document.getElementById('fld');
+  const stage = document.querySelector('.stage');
+
+  // viewBox tracks the stage aspect so the field fills the screen with no letterbox
+  function fitViewport() {
+    const r = stage.getBoundingClientRect();
+    VB.h = Math.max(120, Math.round(100 * r.height / r.width));
+    svg.setAttribute('viewBox', `0 0 ${VB.w} ${VB.h}`);
+    computeBase();
+  }
+
   const rows = [
     ['pitch', 0, 89, 1, '°', 'tilt back'],
+    ['yaw', -180, 180, 1, '°', 'rotate'],
     ['k', 0, 0.04, 0.0005, '', 'perspective'],
     ['zoom', 0.2, 12, 0.05, '×', 'zoom'],
     ['wallH', 0, 60, 0.5, 'ft', 'wall height'],
@@ -235,23 +239,32 @@
   const draw = () => {
     STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
     svg.innerHTML = renderField(cam);
-    out.textContent = `pitch ${cam.pitch}°  ·  k ${cam.k}  ·  zoom ${cam.zoom}\nwallH ${cam.wallH}ft  ·  poleH ${cam.poleH}ft  ·  pan ${cam.panX},${cam.panY}`;
+    out.textContent = `pitch ${cam.pitch}°  ·  k ${cam.k}  ·  zoom ${cam.zoom}×\nwallH ${cam.wallH}ft  ·  poleH ${cam.poleH}ft  ·  pan ${cam.panX},${cam.panY}`;
   };
-  const panel = document.getElementById('cam');
-  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + rows.map(([k,min,max,st,u,l]) =>
-    `<label><span>${l}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${st}" value="${cam[k]}"><b id="v-${k}">${cam[k]}${u}</b></label>`
-  ).join('') + '<div class="row"><button id="reset">reset</button></div><pre id="out"></pre>';
+
+  // build the overlay panel + 🎥 toggle (same pattern as the game)
+  const panel = document.createElement('div'); panel.id = 'campanel'; panel.hidden = true;
+  const presetBar = '<div class="presets">' + Object.keys(PRESETS).map(n => `<button class="pset" data-n="${n}">${n}</button>`).join('') + '</div>';
+  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + presetBar + rows.map(([k,min,max,st,u,l]) =>
+    `<label><span>${l}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${st}" value="${cam[k]}"><b id="v-${k}">${cam[k]}${u}</b><button class="rst" data-k="${k}" title="reset ${l}">↺</button></label>`
+  ).join('') + '<div class="row"><button id="reset">reset all</button></div><pre id="out"></pre>';
+  document.body.appendChild(panel);
   const out = panel.querySelector('#out');
+  const syncLabel = k => { const r = rows.find(r=>r[0]===k); if (r) panel.querySelector('#v-'+k).textContent = cam[k] + r[4]; };
+  const syncSlider = k => { const inp = panel.querySelector(`input[data-k="${k}"]`); if (inp) { inp.value = cam[k]; syncLabel(k); } };
+  const applyAll = obj => { Object.assign(cam, obj); rows.forEach(r => syncSlider(r[0])); draw(); };
   panel.querySelectorAll('input[type=range]').forEach(inp => inp.addEventListener('input', () => {
-    const k=inp.dataset.k; cam[k]=parseFloat(inp.value);
-    panel.querySelector('#v-'+k).textContent = cam[k] + rows.find(r=>r[0]===k)[4];
-    draw();
+    cam[inp.dataset.k] = parseFloat(inp.value); syncLabel(inp.dataset.k); draw();
   }));
-  panel.querySelector('#reset').addEventListener('click', () => {
-    Object.assign(cam, DEF);
-    panel.querySelectorAll('input[type=range]').forEach(inp=>{inp.value=cam[inp.dataset.k];panel.querySelector('#v-'+inp.dataset.k).textContent=cam[inp.dataset.k]+rows.find(r=>r[0]===inp.dataset.k)[4];});
-    draw();
-  });
+  panel.querySelectorAll('.rst').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k; cam[k] = DEF[k]; syncSlider(k); draw(); }));
+  panel.querySelectorAll('.pset').forEach(b => b.addEventListener('click', () => applyAll({ ...PRESETS[b.dataset.n] })));
+  panel.querySelector('#reset').addEventListener('click', () => applyAll({ ...DEF }));
+  const toggle = document.createElement('button'); toggle.id = 'camtoggle'; toggle.textContent = '🎥'; toggle.title = 'Field camera controls';
+  toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+  document.body.appendChild(toggle);
+
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { fitViewport(); draw(); }, 120); });
+  fitViewport();
   draw();
 </script>
 </body>
