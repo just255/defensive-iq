@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Field 2.5D — standing wall + poles (projection prototype)</title>
+<style>
+  :root { color-scheme: dark; --sky:#0b1120; --ink:#cfe0f5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #070c16; color: var(--ink); font: 13px/1.45 'Bahnschrift','Arial Narrow',system-ui,sans-serif; padding: 18px; }
+  h1 { font-size: 15px; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 4px; }
+  p.sub { color: #8ea6c8; max-width: 640px; margin: 0 0 16px; font-size: 12px; }
+  .wrap { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .phone { position: relative; width: 340px; height: 424px; border-radius: 22px; overflow: hidden;
+    background: radial-gradient(90% 60% at 50% 30%, rgba(150,190,220,.10), transparent 62%), var(--sky);
+    border: 1px solid #1e2c46; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .phone svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .phone::after { content:''; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(72% 62% at 50% 46%, transparent 58%, rgba(0,0,0,.42)); }
+  /* camera panel */
+  .cam { width: 268px; background: rgba(11,18,32,.97); border: 1px solid #2a3a55; border-radius: 12px; padding: 12px 14px; }
+  .cam .ttl { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7fd0a3; font-size: 11px; margin-bottom: 8px; }
+  .cam label { display: grid; grid-template-columns: 72px 1fr 48px; align-items: center; gap: 7px; margin: 6px 0; }
+  .cam label > span { color: #93a7c4; font-size: 11px; }
+  .cam input[type=range] { width: 100%; accent-color: #26c565; }
+  .cam b { text-align: right; font-variant-numeric: tabular-nums; color: #e8c24a; }
+  .cam .row { display: flex; gap: 7px; margin-top: 10px; }
+  .cam button { flex: 1; background: #1c2f4f; color: #fff; border: 1px solid #2a3a55; border-radius: 6px; padding: 7px; cursor: pointer; font: inherit; }
+  .cam pre { margin: 9px 0 0; padding: 7px; background: #060b16; border-radius: 6px; white-space: pre-wrap; word-break: break-word; font: 10px/1.4 ui-monospace,monospace; color: #8ea6c8; }
+</style>
+</head>
+<body>
+  <h1>Field 2.5D — real camera, standing wall + poles</h1>
+  <p class="sub">The CSS tilt is gone. Instead every point carries real height (feet), and a single <b>camera projection</b> maps world <b>(x, y, z)</b> → screen with pitch + perspective baked in. Tilt the camera back and the wall &amp; foul poles <b>stand up</b> — because the projection knows about height, not because we faked it. Fielders/bases are flat ground markers for now (billboards + real ball arc come next).</p>
+  <div class="wrap">
+    <div class="phone"><svg id="fld" viewBox="0 0 100 124" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="cam" id="cam"></div>
+  </div>
+
+<script>
+  const SQRT1_2 = Math.SQRT1_2;
+  const polar = (deg, depth) => { const r = deg * Math.PI / 180; return { x: depth * Math.sin(r), y: depth * Math.cos(r) }; };
+
+  const CFG = { LL: { name: 'Little League', base: 60, pitch: 46, fLF: 200, fCF: 200, fRF: 200 } };
+  const STYLE = {
+    arc:          { peak: 1.62, radius: 1.12 },
+    infieldGrass: { scale: 0.92, cutout: 0.11 },
+    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135 },
+    wall:         { panels: 6, ease: 1.7, heightFt: 8 },   // NEW: real wall height in feet
+    foulPole:     { heightFt: 26 },                        // NEW: real pole height in feet
+    mow:          { width: 3.3, opacity: 0.055 },
+    colors: {
+      grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
+      track:'#a5794c', wall:'#0a1f14', wallFace:'#0c241a', wallTop:'#5b8a6c', chalk:'#eef3f9', foulPole:'#e8c24a',
+    },
+  };
+
+  function buildWorld(c) {
+    const d = c.base * SQRT1_2;
+    const bases = { H:{x:0,y:0}, '1B':{x:d,y:d}, '2B':{x:0,y:2*d}, '3B':{x:-d,y:d} };
+    const fielders = {
+      P:{x:0,y:c.pitch}, C:{x:0,y:-c.base*0.13},
+      '1B':{x:d*1.02,y:d*0.82}, '2B':{x:d*0.60,y:2*d*0.86}, SS:{x:-d*0.60,y:2*d*0.86}, '3B':{x:-d*1.02,y:d*0.82},
+      LF:polar(-32,c.fLF*0.72), CF:polar(0,c.fCF*0.74), RF:polar(32,c.fRF*0.72),
+    };
+    const wall = Array.from({length: STYLE.wall.panels+1}, (_,i) => {
+      const a = -45 + (90/STYLE.wall.panels)*i;
+      const pole = a <= 0 ? c.fLF : c.fRF;
+      const depth = c.fCF - (c.fCF - pole) * Math.pow(Math.abs(a)/45, STYLE.wall.ease);
+      return polar(a, depth);
+    });
+    return { bases, fielders, wall, mound:{x:0,y:c.pitch} };
+  }
+
+  // small vector helpers + rounded-diamond (for the infield grass corners)
+  const vsub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}), vadd=(a,b)=>({x:a.x+b.x,y:a.y+b.y}), vmul=(a,s)=>({x:a.x*s,y:a.y*s});
+  const vnorm=a=>{const m=Math.hypot(a.x,a.y)||1;return{x:a.x/m,y:a.y/m};};
+  const f2 = p => p.x.toFixed(1)+' '+p.y.toFixed(1);
+  function roundDia(sv, backoff, concave) {
+    let d='';
+    for (let i=0;i<4;i++){
+      const V=sv[i],Vp=sv[(i+3)%4],Vn=sv[(i+1)%4];
+      const din=vnorm(vsub(V,Vp)),dout=vnorm(vsub(Vn,V));
+      const pin=vadd(V,vmul(din,-backoff)),pout=vadd(V,vmul(dout,backoff));
+      const mid={x:(pin.x+pout.x)/2,y:(pin.y+pout.y)/2};
+      const ctrl=concave?{x:2*mid.x-V.x,y:2*mid.y-V.y}:V;
+      d+=(i===0?'M ':' L ')+f2(pin)+' Q '+f2(ctrl)+' '+f2(pout);
+    }
+    return d+' Z';
+  }
+
+  const VB = { w:100, h:124, padX:7, padTop:8, padBottom:12 };
+
+  // ---- THE CAMERA: world (x=right, y=depth toward CF, z=up/height in feet) → screen.
+  //      pitch 0 = straight overhead (wall shows no height); larger = tilt back so
+  //      height rises on screen. k = perspective strength (0 = parallel/oblique). ----
+  // world (x=right, y=depth toward CF, z=up/height, all feet) -> raw screen axes.
+  //   up   = y·cos(pitch) + z·sin(pitch)   -> tilt back (bigger pitch) compresses
+  //          depth and RAISES height: at pitch 0 (overhead) z adds nothing; the
+  //          wall lies flat. As pitch grows, z·sin(pitch) stands the wall up.
+  //   conv = depth convergence (perspective): farther (deeper y) shrinks toward
+  //          the vanishing point. k=0 -> parallel/oblique. Height doesn't change
+  //          conv, so a wall extrudes as a clean vertical from its own footprint.
+  const rawAt = (pt, cP, sP, k) => {
+    const z = pt.z || 0;
+    const up = pt.y * cP + z * sP;
+    const conv = 1 / Math.max(1 + pt.y * k, 0.3);
+    return { X: pt.x * conv, Y: up * conv };
+  };
+  // The base scale + anchor are computed ONCE (fit at the reference pitch) and
+  // then held FIXED. That's the fix: an auto-fit that re-ran every frame silently
+  // scaled the wall's height back down, so tilting did nothing. With a fixed base,
+  // tilting the camera genuinely stands the wall UP. Home (world origin) is the
+  // anchor, pinned near the bottom so the view pivots around the plate; zoom
+  // scales the base, pan offsets it.
+  let BASE = null;
+  function computeBase() {
+    const w = buildWorld(CFG.LL);
+    const p = DEF.pitch*Math.PI/180, cP = Math.cos(p), sP = Math.sin(p), k = DEF.k;
+    const H = DEF.wallH, PH = DEF.poleH, ext = [];
+    w.wall.forEach(v => { ext.push({x:v.x,y:v.y,z:0}); ext.push({x:v.x,y:v.y,z:H}); });
+    const L = w.wall[0], R = w.wall[w.wall.length-1];
+    ext.push({x:L.x,y:L.y,z:PH}, {x:R.x,y:R.y,z:PH});
+    Object.values(w.bases).forEach(b => ext.push(b)); ext.push(w.fielders.C);
+    const Rs = ext.map(pt => rawAt(pt, cP, sP, k)), Xs = Rs.map(r=>r.X), Ys = Rs.map(r=>r.Y);
+    const S0 = Math.min((VB.w-2*VB.padX)/(Math.max(...Xs)-Math.min(...Xs)), (VB.h-VB.padTop-VB.padBottom)/(Math.max(...Ys)-Math.min(...Ys)));
+    BASE = { S0, homeY0: VB.h - VB.padBottom - 3 };
+  }
+  function makeCamera(w, cam) {
+    const p = cam.pitch*Math.PI/180, cP = Math.cos(p), sP = Math.sin(p), k = cam.k;
+    const S = BASE.S0 * cam.zoom, cx = VB.w/2 + cam.panX, homeY = BASE.homeY0 + cam.panY;
+    return (pt) => { const r = rawAt(pt, cP, sP, k); return { x: cx + r.X*S, y: homeY - r.Y*S }; };
+  }
+
+  // sample helpers (curves must be projected point-by-point, not via SVG arcs,
+  // because perspective turns circles into non-elliptical curves)
+  const arcPts = (cxw,cyw,r,a0,a1,n) => Array.from({length:n+1},(_,i)=>{const a=a0+(a1-a0)*i/n;return{x:cxw+r*Math.cos(a),y:cyw+r*Math.sin(a)};});
+  const circPts = (cxw,cyw,r,n) => Array.from({length:n},(_,i)=>{const a=2*Math.PI*i/n;return{x:cxw+r*Math.cos(a),y:cyw+r*Math.sin(a)};});
+
+  function renderField(cam) {
+    const c = CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
+    const pj = pt => { const s = P(pt); return s.x.toFixed(1)+','+s.y.toFixed(1); };
+    const path = pts => 'M ' + pts.map(pj).join(' L ');
+    const B = w.bases, H = STYLE.wall.heightFt, PH = STYLE.foulPole.heightFt;
+    const cen = { x:0, y:c.base*SQRT1_2 };
+    const lerp = (b,f) => ({ x: cen.x+(b.x-cen.x)*f, y: cen.y+(b.y-cen.y)*f });
+
+    // ground: outfield grass fan (home -> straight wall panels -> home)
+    const grass = path([B.H, ...w.wall]) + ' Z';
+    // infield dirt fan: home -> right corner -> circular grass-line arc -> left corner -> home
+    const yp=c.base*STYLE.arc.peak, Rarc=c.base*STYLE.arc.radius, cyw=yp-Rarc;
+    const tt=(cyw+Math.sqrt(Math.max(0,2*Rarc*Rarc-cyw*cyw)))/2;
+    const thR=Math.atan2(tt-cyw,tt), thL=Math.atan2(tt-cyw,-tt);
+    const arc=arcPts(0,cyw,Rarc,thR,thL,26);
+    const dirtFan = path([B.H,{x:tt,y:tt},...arc,B.H]) + ' Z';
+    // screen-space widths for strokes that were fractions of base distance
+    const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
+    const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
+    const homeCircle = path(circPts(0,0,c.base*STYLE.dirt.homeCircle,24)) + ' Z';
+    const mound = path(circPts(0,c.pitch,c.base*STYLE.dirt.mound,22)) + ' Z';
+    const bs=[B.H,B['1B'],B['2B'],B['3B']];
+    const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
+    const foulL = path([B.H, w.wall[0]]), foulR = path([B.H, w.wall[w.wall.length-1]]);
+    const bbox = sx => path([{x:sx*1.7,y:-2.5},{x:sx*5.4,y:-2.5},{x:sx*5.4,y:4},{x:sx*1.7,y:4}]) + ' Z';
+    const hm = P(B.H);
+    const plate = `M ${(hm.x-1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} L ${hm.x.toFixed(1)} ${(hm.y+1.6).toFixed(1)} L ${(hm.x-1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} Z`;
+
+    // ---- the standing wall: one quad face per panel (bottom z0 -> top zH) ----
+    let faces = '';
+    for (let i=0;i<w.wall.length-1;i++){
+      const a=w.wall[i], b=w.wall[i+1];
+      const quad=[{...a,z:0},{...b,z:0},{...b,z:H},{...a,z:H}];
+      faces += `<path d="${path(quad)} Z" fill="url(#wallface)" stroke="none"/>`;
+    }
+    const topEdge = path(w.wall.map(v=>({...v,z:H})));
+    // ---- foul poles: tall verticals at the two corners (base z0 -> top zPH) ----
+    const pole = v => { const b=P({...v,z:0}), t=P({...v,z:PH});
+      return `<line x1="${b.x.toFixed(1)}" y1="${b.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" stroke="${STYLE.colors.foulPole}" stroke-width="1.3" stroke-linecap="round"/><circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="1.5" fill="${STYLE.colors.foulPole}"/>`; };
+
+    // fielders + bases as flat ground markers (z=0) for reference
+    const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
+    const baseSq = ['1B','2B','3B'].map(k=>{const s=P(B[k]);return `<rect x="${(s.x-1.1).toFixed(1)}" y="${(s.y-1.1).toFixed(1)}" width="2.2" height="2.2" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`;}).join('');
+
+    // vertical mow stripes (screen space) clipped to the projected grass
+    let mow=''; const MW=STYLE.mow.width;
+    for(let x=-3;x<VB.w;x+=2*MW) mow+=`<rect x="${x.toFixed(1)}" y="0" width="${MW}" height="${VB.h}" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#fair)"/>`;
+
+    return `
+      <defs>
+        <radialGradient id="grassg" cx="50%" cy="78%" r="95%"><stop offset="0%" stop-color="${STYLE.colors.grass[0]}"/><stop offset="55%" stop-color="${STYLE.colors.grass[1]}"/><stop offset="100%" stop-color="${STYLE.colors.grass[2]}"/></radialGradient>
+        <radialGradient id="infg" cx="50%" cy="70%" r="80%"><stop offset="0%" stop-color="${STYLE.colors.infield[0]}"/><stop offset="100%" stop-color="${STYLE.colors.infield[1]}"/></radialGradient>
+        <linearGradient id="dirtg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
+        <linearGradient id="wallface" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.wallTop}"/><stop offset="14%" stop-color="${STYLE.colors.wallFace}"/><stop offset="100%" stop-color="${STYLE.colors.wall}"/></linearGradient>
+        <clipPath id="fair"><path d="${grass}"/></clipPath>
+      </defs>
+      <!-- ground -->
+      <path d="${grass}" fill="url(#grassg)"/>
+      ${mow}
+      <path d="${grass}" fill="none" stroke="${STYLE.colors.track}" stroke-width="${trackW.toFixed(1)}" stroke-linejoin="round" clip-path="url(#fair)" opacity=".9"/>
+      <!-- STANDING wall (faces + lit top edge), drawn behind the infield -->
+      ${faces}
+      <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
+      <!-- infield ground -->
+      <path d="${foulL}" fill="none" stroke="url(#dirtg)" stroke-width="${foulW.toFixed(1)}" stroke-linecap="butt"/>
+      <path d="${foulR}" fill="none" stroke="url(#dirtg)" stroke-width="${foulW.toFixed(1)}" stroke-linecap="butt"/>
+      <path d="${dirtFan} ${homeCircle}" fill="url(#dirtg)"/>
+      <path d="${grassIn}" fill="url(#infg)"/>
+      <path d="${mound}" fill="url(#dirtg)"/>
+      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6"/>
+      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6"/>
+      <path d="${bbox(-1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>
+      <path d="${bbox(1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>
+      <path d="${plate}" fill="#f4f7fb"/>
+      ${baseSq}
+      ${fld}
+      <!-- foul poles tower above the wall corners -->
+      ${pole(w.wall[0])}${pole(w.wall[w.wall.length-1])}
+    `;
+  }
+
+  // ---- camera state + panel ----
+  const DEF = { pitch: 44, k: 0.0022, zoom: 1, wallH: 12, poleH: 30, panX: 0, panY: 0 };
+  const cam = { ...DEF };
+  computeBase();
+  const svg = document.getElementById('fld');
+  const rows = [
+    ['pitch', 0, 75, 1, '°', 'tilt back'],
+    ['k', 0, 0.008, 0.0002, '', 'perspective'],
+    ['zoom', 0.5, 2, 0.02, '×', 'zoom'],
+    ['wallH', 0, 22, 0.5, 'ft', 'wall height'],
+    ['poleH', 0, 45, 1, 'ft', 'pole height'],
+    ['panX', -40, 40, 1, '', 'pan ←→'],
+    ['panY', -60, 60, 1, '', 'pan ↑↓'],
+  ];
+  const draw = () => {
+    STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
+    svg.innerHTML = renderField(cam);
+    out.textContent = `pitch ${cam.pitch}°  ·  k ${cam.k}  ·  zoom ${cam.zoom}\nwallH ${cam.wallH}ft  ·  poleH ${cam.poleH}ft  ·  pan ${cam.panX},${cam.panY}`;
+  };
+  const panel = document.getElementById('cam');
+  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + rows.map(([k,min,max,st,u,l]) =>
+    `<label><span>${l}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${st}" value="${cam[k]}"><b id="v-${k}">${cam[k]}${u}</b></label>`
+  ).join('') + '<div class="row"><button id="reset">reset</button></div><pre id="out"></pre>';
+  const out = panel.querySelector('#out');
+  panel.querySelectorAll('input[type=range]').forEach(inp => inp.addEventListener('input', () => {
+    const k=inp.dataset.k; cam[k]=parseFloat(inp.value);
+    panel.querySelector('#v-'+k).textContent = cam[k] + rows.find(r=>r[0]===k)[4];
+    draw();
+  }));
+  panel.querySelector('#reset').addEventListener('click', () => {
+    Object.assign(cam, DEF);
+    panel.querySelectorAll('input[type=range]').forEach(inp=>{inp.value=cam[inp.dataset.k];panel.querySelector('#v-'+inp.dataset.k).textContent=cam[inp.dataset.k]+rows.find(r=>r[0]===inp.dataset.k)[4];});
+    draw();
+  });
+  draw();
+</script>
+</body>
+</html>
