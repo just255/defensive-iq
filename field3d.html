@@ -166,6 +166,11 @@
     const foulL = path([B.H, w.wall[0]]), foulR = path([B.H, w.wall[w.wall.length-1]]);
     const bbox = sx => path([{x:sx*1.7,y:-2.5},{x:sx*5.4,y:-2.5},{x:sx*5.4,y:4},{x:sx*1.7,y:4}]) + ' Z';
     const hm = P(B.H);
+    // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
+    // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
+    // consistent across both dirt paths (no seam).
+    const dirtY1 = P({x:0, y:c.fCF}).y;              // far wall edge (light stop)
+    const dirtY2 = P({x:0, y:-c.base*0.28}).y;       // behind-home edge (dark stop)
     const plate = `M ${(hm.x-1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} L ${hm.x.toFixed(1)} ${(hm.y+1.6).toFixed(1)} L ${(hm.x-1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} Z`;
 
     let faces = '';
@@ -225,7 +230,7 @@
       <defs>
         <radialGradient id="grassg" cx="50%" cy="78%" r="95%"><stop offset="0%" stop-color="${STYLE.colors.grass[0]}"/><stop offset="55%" stop-color="${STYLE.colors.grass[1]}"/><stop offset="100%" stop-color="${STYLE.colors.grass[2]}"/></radialGradient>
         <radialGradient id="infg" cx="50%" cy="70%" r="80%"><stop offset="0%" stop-color="${STYLE.colors.infield[0]}"/><stop offset="100%" stop-color="${STYLE.colors.infield[1]}"/></radialGradient>
-        <linearGradient id="dirtg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${VB.h}"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
+        <linearGradient id="dirtg" gradientUnits="userSpaceOnUse" x1="0" y1="${dirtY1.toFixed(1)}" x2="0" y2="${dirtY2.toFixed(1)}"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
         <linearGradient id="wallface" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.wallTop}"/><stop offset="14%" stop-color="${STYLE.colors.wallFace}"/><stop offset="100%" stop-color="${STYLE.colors.wall}"/></linearGradient>
         <radialGradient id="moundg" cx="42%" cy="36%" r="72%"><stop offset="0%" stop-color="#d9955f"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></radialGradient>
         <clipPath id="outgrass"><path d="${outGrass}"/></clipPath>
