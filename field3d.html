@@ -47,7 +47,7 @@
   const STYLE = {
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
-    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135 },
+    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135, moundHeightFt: 0.04 },
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
     foulPole:     { heightFt: 30 },
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
@@ -159,7 +159,8 @@
     const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
     const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
     const homeCircle = path(circPts(0,0,c.base*STYLE.dirt.homeCircle,24)) + ' Z';
-    const mound = path(circPts(0,c.pitch,c.base*STYLE.dirt.mound,22)) + ' Z';
+    const moundH = c.base*STYLE.dirt.moundHeightFt;   // the mound is raised off the ground plane
+    const mound = path(circPts(0,c.pitch,c.base*STYLE.dirt.mound,22).map(p=>({x:p.x,y:p.y,z:moundH}))) + ' Z';
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
     const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
     const foulL = path([B.H, w.wall[0]]), foulR = path([B.H, w.wall[w.wall.length-1]]);
@@ -180,13 +181,32 @@
     const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
     const baseSq = ['1B','2B','3B'].map(k=>{const s=P(B[k]);return `<rect x="${(s.x-1.1).toFixed(1)}" y="${(s.y-1.1).toFixed(1)}" width="2.2" height="2.2" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`;}).join('');
 
-    // mow stripes are WORLD-space bands (vertical in field space, running out from
-    // home) PROJECTED through the camera, so they converge + foreshorten with the
-    // field instead of being flat screen stripes. Clipped to the outfield grass.
+    // ---- DIRT IS ONE SHAPE. Instead of stroking separate bands (which don't
+    //      foreshorten and use their own colour), we fill the whole fair region
+    //      with dirt and cut ONE outfield-grass polygon out on top. Whatever the
+    //      grass doesn't cover = the single connected dirt skin: infield + foul
+    //      strips + warning track, all the same gradient, all foreshortening
+    //      correctly because they're real filled world-space regions. The grass
+    //      polygon is the fair area pulled inward from the wall (by the warning-
+    //      track width) and from the foul lines (by the foul-strip width), and
+    //      bounded on the infield side by the grass-line arc. ----
+    const nrm = v => { const m = Math.hypot(v.x,v.y)||1; return {x:v.x/m, y:v.y/m}; };
+    const trackFt = c.base*STYLE.dirt.warningTrack, foulFt = c.base*STYLE.dirt.foulStrip;
+    const iWall = w.wall.map(v => { const m = Math.hypot(v.x,v.y); const s = (m-trackFt)/m; return {x:v.x*s, y:v.y*s}; });
+    const dR = nrm(w.wall[w.wall.length-1]), nR = {x:-dR.y, y:dR.x};   // right foul inward normal (into fair)
+    const dL = nrm(w.wall[0]),               nL = {x: dL.y, y:-dL.x};  // left foul inward normal
+    const off = (p,n) => ({x:p.x+n.x*foulFt, y:p.y+n.y*foulFt});
+    const arcLR = arcPts(0,cyw,Rarc,thL,thR,24);                       // grass line, left corner -> right corner
+    const outGrass = path([ off({x:tt,y:tt},nR), off(iWall[iWall.length-1],nR),
+                            ...iWall.slice().reverse(), off(iWall[0],nL), off({x:-tt,y:tt},nL),
+                            ...arcLR ]) + ' Z';
+
+    // mow stripes: WORLD-space bands PROJECTED through the camera (converge +
+    // foreshorten with the field), clipped to the outfield grass.
     let mow=''; const bandFt = c.base * STYLE.mow.widthFt;
     for (let x=-170; x<170; x += 2*bandFt) {
       const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:250}, {x, y:250}];
-      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#fair)"/>`;
+      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#outgrass)"/>`;
     }
 
     return `
@@ -195,20 +215,25 @@
         <radialGradient id="infg" cx="50%" cy="70%" r="80%"><stop offset="0%" stop-color="${STYLE.colors.infield[0]}"/><stop offset="100%" stop-color="${STYLE.colors.infield[1]}"/></radialGradient>
         <linearGradient id="dirtg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
         <linearGradient id="wallface" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.wallTop}"/><stop offset="14%" stop-color="${STYLE.colors.wallFace}"/><stop offset="100%" stop-color="${STYLE.colors.wall}"/></linearGradient>
-        <clipPath id="fair"><path d="${grass}"/></clipPath>
+        <radialGradient id="moundg" cx="42%" cy="36%" r="72%"><stop offset="0%" stop-color="#d9955f"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></radialGradient>
+        <clipPath id="outgrass"><path d="${outGrass}"/></clipPath>
       </defs>
-      <path d="${grass}" fill="url(#grassg)"/>
+      <!-- GROUND LAYER: dirt is ONE continuous shape (whole fair + home-plate dirt) -->
+      <path d="${grass} ${homeCircle}" fill="url(#dirtg)"/>
+      <!-- GRASS grows on top of the dirt (outfield); what it leaves uncovered IS the
+           warning track + foul strips + infield skin — one connected dirt, one colour -->
+      <path d="${outGrass}" fill="url(#grassg)"/>
       ${mow}
-      <path d="${grass}" fill="none" stroke="${STYLE.colors.track}" stroke-width="${trackW.toFixed(1)}" stroke-linejoin="round" clip-path="url(#fair)" opacity=".9"/>
+      <!-- standing wall + lit top edge -->
       ${faces}
       <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
-      <path d="${foulL}" fill="none" stroke="url(#dirtg)" stroke-width="${foulW.toFixed(1)}" stroke-linecap="butt"/>
-      <path d="${foulR}" fill="none" stroke="url(#dirtg)" stroke-width="${foulW.toFixed(1)}" stroke-linecap="butt"/>
-      <path d="${dirtFan} ${homeCircle}" fill="url(#dirtg)"/>
+      <!-- infield grass patch grows on the infield dirt -->
       <path d="${grassIn}" fill="url(#infg)"/>
-      <path d="${mound}" fill="url(#dirtg)"/>
-      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6"/>
-      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6"/>
+      <!-- the mound is the one ELEVATED feature: raised dirt sitting above the grass -->
+      <path d="${mound}" fill="url(#moundg)"/>
+      <!-- chalk foul lines ride on the foul-strip dirt -->
+      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
+      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
       <path d="${bbox(-1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>
       <path d="${bbox(1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>
       <path d="${plate}" fill="#f4f7fb"/>
