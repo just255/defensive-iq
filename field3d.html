@@ -97,12 +97,17 @@
 
   // world (x=right, y=depth toward CF, z=up/height, feet) -> raw screen axes.
   //   up   = y·cos(pitch) + z·sin(pitch)  -> tilt back raises height (0 at overhead)
-  //   conv = depth convergence (perspective); height doesn't change conv, so a
-  //          wall extrudes as a clean vertical from its own footprint.
+  //   conv = depth convergence (perspective). It's measured from a camera plane
+  //          BEHIND home (Y_NEAR), NOT from home itself — otherwise points behind
+  //          home (catcher, home-plate dirt at y<0) fall "behind the camera" and
+  //          MAGNIFY, ballooning + flaring the whole field at high perspective.
+  //          Offsetting by Y_NEAR keeps every point in front, so conv only shrinks
+  //          (0,1]. Height doesn't change conv, so a wall extrudes cleanly.
+  const Y_NEAR = -CFG.LL.base * 0.28;   // camera plane a bit behind the deepest home dirt
   const rawAt = (pt, cP, sP, k) => {
     const z = pt.z || 0;
     const up = pt.y * cP + z * sP;
-    const conv = 1 / Math.max(1 + pt.y * k, 0.3);
+    const conv = 1 / Math.max(1 + (pt.y - Y_NEAR) * k, 0.05);
     return { X: pt.x * conv, Y: up * conv };
   };
   // Base scale + anchor are computed ONCE per fit (reference pitch) and held
