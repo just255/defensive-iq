@@ -50,7 +50,7 @@
     dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135 },
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
     foulPole:     { heightFt: 30 },
-    mow:          { width: 3.3, opacity: 0.055 },
+    mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
       track:'#a5794c', wall:'#0a1f14', wallFace:'#0c241a', wallTop:'#5b8a6c', chalk:'#eef3f9', foulPole:'#e8c24a',
@@ -179,8 +179,14 @@
     const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
     const baseSq = ['1B','2B','3B'].map(k=>{const s=P(B[k]);return `<rect x="${(s.x-1.1).toFixed(1)}" y="${(s.y-1.1).toFixed(1)}" width="2.2" height="2.2" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`;}).join('');
 
-    let mow=''; const MW=STYLE.mow.width;
-    for(let x=-3;x<VB.w;x+=2*MW) mow+=`<rect x="${x.toFixed(1)}" y="0" width="${MW}" height="${VB.h}" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#fair)"/>`;
+    // mow stripes are WORLD-space bands (vertical in field space, running out from
+    // home) PROJECTED through the camera, so they converge + foreshorten with the
+    // field instead of being flat screen stripes. Clipped to the outfield grass.
+    let mow=''; const bandFt = c.base * STYLE.mow.widthFt;
+    for (let x=-170; x<170; x += 2*bandFt) {
+      const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:250}, {x, y:250}];
+      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#fair)"/>`;
+    }
 
     return `
       <defs>
