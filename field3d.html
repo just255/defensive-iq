@@ -224,13 +224,13 @@
   computeBase();
   const svg = document.getElementById('fld');
   const rows = [
-    ['pitch', 0, 75, 1, '°', 'tilt back'],
-    ['k', 0, 0.008, 0.0002, '', 'perspective'],
-    ['zoom', 0.5, 2, 0.02, '×', 'zoom'],
-    ['wallH', 0, 22, 0.5, 'ft', 'wall height'],
-    ['poleH', 0, 45, 1, 'ft', 'pole height'],
-    ['panX', -40, 40, 1, '', 'pan ←→'],
-    ['panY', -60, 60, 1, '', 'pan ↑↓'],
+    ['pitch', 0, 89, 1, '°', 'tilt back'],
+    ['k', 0, 0.04, 0.0005, '', 'perspective'],
+    ['zoom', 0.2, 12, 0.05, '×', 'zoom'],
+    ['wallH', 0, 60, 0.5, 'ft', 'wall height'],
+    ['poleH', 0, 120, 1, 'ft', 'pole height'],
+    ['panX', -400, 400, 2, '', 'pan ←→'],
+    ['panY', -400, 400, 2, '', 'pan ↑↓'],
   ];
   const draw = () => {
     STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
