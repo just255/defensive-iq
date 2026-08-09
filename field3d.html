@@ -219,13 +219,12 @@
                             ...arcLR ]) + ' Z';
 
     // mow stripes: WORLD-space bands PROJECTED through the camera (converge +
-    // foreshorten with the field). Drawn WITHOUT per-band clips so the whole set
-    // can be blurred together (soft edges, not hard seams) then clipped to the
-    // outfield grass as a group — see the mowblur filter + wrapping <g> below.
+    // foreshorten with the field), clipped to the outfield grass. HARD-edged
+    // (real mow strips are hard).
     let mow=''; const bandFt = c.base * STYLE.mow.widthFt;
     for (let x=-170; x<170; x += 2*bandFt) {
       const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:250}, {x, y:250}];
-      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}"/>`;
+      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#outgrass)"/>`;
     }
 
     return `
@@ -235,7 +234,6 @@
         <linearGradient id="dirtg" gradientUnits="userSpaceOnUse" x1="0" y1="${dirtY1.toFixed(1)}" x2="0" y2="${dirtY2.toFixed(1)}"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
         <linearGradient id="wallface" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.wallTop}"/><stop offset="14%" stop-color="${STYLE.colors.wallFace}"/><stop offset="100%" stop-color="${STYLE.colors.wall}"/></linearGradient>
         <radialGradient id="moundg" cx="42%" cy="36%" r="72%"><stop offset="0%" stop-color="#d9955f"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></radialGradient>
-        <filter id="mowblur" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.6"/></filter>
         <clipPath id="outgrass"><path d="${outGrass}"/></clipPath>
       </defs>
       <!-- GROUND LAYER: dirt. Separate SOLID paths (fair fan + home-plate dirt)
@@ -247,9 +245,7 @@
       <!-- GRASS grows on top of the dirt (outfield); what it leaves uncovered IS the
            warning track + foul strips + infield skin — one connected dirt, one colour -->
       <path d="${outGrass}" fill="url(#grassg)"/>
-      <!-- mow stripes: blurred as a group (soft edges, no hard seams), then
-           clipped to the grass so the grass/dirt boundary stays crisp -->
-      <g clip-path="url(#outgrass)"><g filter="url(#mowblur)">${mow}</g></g>
+      ${mow}
       <!-- standing wall + lit top edge -->
       ${faces}
       <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
