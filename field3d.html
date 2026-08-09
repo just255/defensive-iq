@@ -49,7 +49,7 @@
     infieldGrass: { scale: 0.92, cutout: 0.11 },
     dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135, moundHeightFt: 0.04 },
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
-    foulPole:     { heightFt: 30 },
+    foulPole:     { heightFt: 30, screenFt: 0.06 },   // screen panel width jutting into fair (fraction of base)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
@@ -175,8 +175,20 @@
       faces += `<path d="${path(quad)} Z" fill="url(#wallface)" stroke="none"/>`;
     }
     const topEdge = path(w.wall.map(v=>({...v,z:H})));
-    const pole = v => { const b=P({...v,z:0}), t=P({...v,z:PH});
-      return `<line x1="${b.x.toFixed(1)}" y1="${b.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" stroke="${STYLE.colors.foulPole}" stroke-width="1.3" stroke-linecap="round"/><circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="1.5" fill="${STYLE.colors.foulPole}"/>`; };
+    // A real foul pole: a thin vertical pole from the ground up, plus a flat
+    // rectangular SCREEN panel jutting into FAIR above the fence (not an orb on
+    // top). n = the foul-line inward normal (into fair) for this corner.
+    const screenFt = c.base * STYLE.foulPole.screenFt;
+    const pl = f => f.x.toFixed(1) + ',' + f.y.toFixed(1);
+    const pole = (v, n) => {
+      const b = P({...v, z:0}), t = P({...v, z:PH});
+      const zB = STYLE.wall.heightFt, zT = PH * 0.9;           // screen: fence-top -> near pole-top
+      const vi = { x: v.x + n.x*screenFt, y: v.y + n.y*screenFt };
+      const s0=P({x:v.x,y:v.y,z:zB}), s1=P({x:v.x,y:v.y,z:zT}), s2=P({x:vi.x,y:vi.y,z:zT}), s3=P({x:vi.x,y:vi.y,z:zB});
+      const screen = `<path d="M ${pl(s0)} L ${pl(s1)} L ${pl(s2)} L ${pl(s3)} Z" fill="${STYLE.colors.foulPole}" opacity=".92"/>`;
+      const shaft = `<line x1="${b.x.toFixed(1)}" y1="${b.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" stroke="${STYLE.colors.foulPole}" stroke-width="0.9" stroke-linecap="round"/>`;
+      return screen + shaft;
+    };
 
     const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
     const baseSq = ['1B','2B','3B'].map(k=>{const s=P(B[k]);return `<rect x="${(s.x-1.1).toFixed(1)}" y="${(s.y-1.1).toFixed(1)}" width="2.2" height="2.2" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`;}).join('');
@@ -239,7 +251,7 @@
       <path d="${plate}" fill="#f4f7fb"/>
       ${baseSq}
       ${fld}
-      ${pole(w.wall[0])}${pole(w.wall[w.wall.length-1])}
+      ${pole(w.wall[0], nL)}${pole(w.wall[w.wall.length-1], nR)}
     `;
   }
 
