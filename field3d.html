@@ -90,7 +90,9 @@
       const din=vnorm(vsub(V,Vp)),dout=vnorm(vsub(Vn,V));
       const pin=vadd(V,vmul(din,-backoff)),pout=vadd(V,vmul(dout,backoff));
       const mid={x:(pin.x+pout.x)/2,y:(pin.y+pout.y)/2};
-      const ctrl=concave?{x:2*mid.x-V.x,y:2*mid.y-V.y}:V;
+      // concave base cutout: a SHALLOW dip toward the interior (0.4x the old depth)
+      // so it reads as a gentle circular scoop, not a deep parabola.
+      const ctrl=concave?{x:mid.x+(mid.x-V.x)*0.4,y:mid.y+(mid.y-V.y)*0.4}:V;
       d+=(i===0?'M ':' L ')+f2(pin)+' Q '+f2(ctrl)+' '+f2(pout);
     }
     return d+' Z';
@@ -189,16 +191,19 @@
     }
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
     const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
-    // foul chalk starts ~6ft out from home (past the batter's boxes) so it doesn't
-    // visibly run through them; the near-home foul territory is plate/box dirt anyway.
-    const fStart = v => { const m = Math.hypot(v.x,v.y), s = 6/m; return {x:v.x*s, y:v.y*s}; };
+    // foul chalk starts where the (45deg) foul line crosses the batter's box TOP
+    // edge (y = 3) — so it CONNECTS to the box corner instead of running through it
+    // or floating out past it. All the home-plate chalk shares these box coords.
+    const fStart = v => { const m = Math.hypot(v.x,v.y), s = 3/(v.y/m); return {x:(v.x/m)*s, y:3}; };
     const foulL = path([fStart(w.wall[0]), w.wall[0]]), foulR = path([fStart(w.wall[w.wall.length-1]), w.wall[w.wall.length-1]]);
     // batter's box: real 4ft x 6ft, inside edge 6in (0.5ft) from the plate side
     // (plate half-width 0.71ft -> inner x 1.21, outer 5.21), 3ft ahead/behind home.
     const bbox = sx => path([{x:sx*1.21,y:-3},{x:sx*5.21,y:-3},{x:sx*5.21,y:3},{x:sx*1.21,y:3}]) + ' Z';
-    // catcher's box: real 43in wide (x +/-1.79) x 8ft long, measured back from the
-    // plate's back point (~y -0.85) toward the backstop (-y).
-    const catBox = path([{x:-1.79,y:-0.85},{x:1.79,y:-0.85},{x:1.79,y:-8.85},{x:-1.79,y:-8.85}]) + ' Z';
+    // catcher's box: a squared U (OPEN toward the plate), 43in wide (x +/-1.79),
+    // its two open ends starting at the BOTTOM of the batter's boxes (y -3) and
+    // running back to ~8ft from home (y -8). No top line, so it doesn't collide
+    // with the batter's boxes.
+    const catBox = path([{x:1.79,y:-3},{x:1.79,y:-8},{x:-1.79,y:-8},{x:-1.79,y:-3}]);
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
     // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
