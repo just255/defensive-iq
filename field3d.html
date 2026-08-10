@@ -54,6 +54,7 @@
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
     dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.17 },   // mound size lives in CFG (real feet)
+    markers:      { baseHD: 1.4, plateScale: 1.5 },   // baseHD = base half-diagonal (ft). Real base is 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for game visibility. plateScale exaggerates the 17in plate to match.
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
@@ -65,7 +66,13 @@
 
   function buildWorld(c) {
     const d = c.base * SQRT1_2;
-    const bases = { H:{x:0,y:0}, '1B':{x:d,y:d}, '2B':{x:0,y:2*d}, '3B':{x:-d,y:d} };
+    // 1B/3B: the on-line point (d,d)/(-d,d) is the bag's OUTER (foul-facing) corner
+    // at the base distance. Real bags sit ENTIRELY in fair with that edge ON the foul
+    // line, so shift each center inward (into fair) by half the bag: center offset of
+    // baseHD/2 on each axis makes (Cx-Cy) = -baseHD -> foul edge lands on y=x (mirror
+    // for 3B). Keeps the diamonds out of foul territory.
+    const bh = STYLE.markers.baseHD / 2;
+    const bases = { H:{x:0,y:0}, '1B':{x:d-bh,y:d+bh}, '2B':{x:0,y:2*d}, '3B':{x:-d+bh,y:d+bh} };
     const fielders = {
       P:{x:0,y:c.pitch}, C:{x:0,y:-c.base*0.13},
       '1B':{x:d*1.02,y:d*0.82}, '2B':{x:d*0.60,y:2*d*0.86}, SS:{x:-d*0.60,y:2*d*0.86}, '3B':{x:-d*1.02,y:d*0.82},
@@ -212,7 +219,8 @@
     const dirtY2 = P({x:0, y:-c.base*0.28}).y;       // behind-home edge (dark stop)
     // home plate as a real 17in pentagon on the GROUND (point toward the catcher,
     // -y), projected so it foreshortens with the field.
-    const plate = path([{x:-0.71,y:0.35},{x:0.71,y:0.35},{x:0.71,y:-0.3},{x:0,y:-0.85},{x:-0.71,y:-0.3}]) + ' Z';
+    const psc = STYLE.markers.plateScale;   // exaggerate the 17in plate to match the bases
+    const plate = path([{x:-0.71*psc,y:0.35*psc},{x:0.71*psc,y:0.35*psc},{x:0.71*psc,y:-0.3*psc},{x:0,y:-0.85*psc},{x:-0.71*psc,y:-0.3*psc}]) + ' Z';
 
     let faces = '';
     for (let i=0;i<w.wall.length-1;i++){
@@ -239,7 +247,7 @@
     const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
     // bases as ~15in squares (diamond orientation) on the GROUND, projected so
     // they foreshorten/flatten with the field instead of staying fixed screen squares.
-    const bd = 0.9;   // half-diagonal of a 15in base, ft
+    const bd = STYLE.markers.baseHD;   // base half-diagonal, ft (see STYLE.markers)
     const baseSq = ['1B','2B','3B'].map(k => { const ctr = B[k];
       return `<path d="${path([{x:ctr.x,y:ctr.y+bd},{x:ctr.x+bd,y:ctr.y},{x:ctr.x,y:ctr.y-bd},{x:ctr.x-bd,y:ctr.y}])} Z" fill="#f4f7fb"/>`; }).join('');
 
