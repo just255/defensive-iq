@@ -47,15 +47,15 @@
   // base): 18-ft diameter (9-ft radius) at every level; Little League height is
   // 6 inches (0.5 ft) vs 10 inches at HS/college/MLB.
   const CFG = {
-    LL:  { name: 'Little League', base: 60, pitch: 46,   fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5 },   // 18-ft dia, 6in high
-    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833 }, // 18-ft dia, 10in high
+    LL:  { name: 'Little League', base: 60, pitch: 46,   fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5,   wallHt: 6, poleHt: 15 },
+    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833, wallHt: 8, poleHt: 45 },
   };
   const STYLE = {
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
     dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17 },   // mound size lives in CFG (real feet)
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
-    foulPole:     { heightFt: 30, screenFt: 0.045 },   // screen panel width jutting into fair (fraction of base)
+    foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
@@ -124,7 +124,7 @@
   function computeBase() {
     const w = buildWorld(CFG[cam.park] || CFG.LL);
     const p = DEF.pitch*Math.PI/180, cP = Math.cos(p), sP = Math.sin(p), k = DEF.k;
-    const H = DEF.wallH, PH = DEF.poleH, ext = [];
+    const H = cam.wallH, PH = cam.poleH, ext = [];
     w.wall.forEach(v => { ext.push({x:v.x,y:v.y,z:0}); ext.push({x:v.x,y:v.y,z:H}); });
     const L = w.wall[0], R = w.wall[w.wall.length-1];
     ext.push({x:L.x,y:L.y,z:PH}, {x:R.x,y:R.y,z:PH});
@@ -185,15 +185,22 @@
     }
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
     const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
-    const foulL = path([B.H, w.wall[0]]), foulR = path([B.H, w.wall[w.wall.length-1]]);
-    const bbox = sx => path([{x:sx*1.7,y:-2.5},{x:sx*5.4,y:-2.5},{x:sx*5.4,y:4},{x:sx*1.7,y:4}]) + ' Z';
+    // foul chalk starts ~6ft out from home (past the batter's boxes) so it doesn't
+    // visibly run through them; the near-home foul territory is plate/box dirt anyway.
+    const fStart = v => { const m = Math.hypot(v.x,v.y), s = 6/m; return {x:v.x*s, y:v.y*s}; };
+    const foulL = path([fStart(w.wall[0]), w.wall[0]]), foulR = path([fStart(w.wall[w.wall.length-1]), w.wall[w.wall.length-1]]);
+    // batter's box: real 4ft x 6ft, inside edge 6in (0.5ft) from the plate side
+    // (plate half-width 0.71ft -> inner x 1.21, outer 5.21), 3ft ahead/behind home.
+    const bbox = sx => path([{x:sx*1.21,y:-3},{x:sx*5.21,y:-3},{x:sx*5.21,y:3},{x:sx*1.21,y:3}]) + ' Z';
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
     // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
     // consistent across both dirt paths (no seam).
     const dirtY1 = P({x:0, y:c.fCF}).y;              // far wall edge (light stop)
     const dirtY2 = P({x:0, y:-c.base*0.28}).y;       // behind-home edge (dark stop)
-    const plate = `M ${(hm.x-1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y-1).toFixed(1)} L ${(hm.x+1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} L ${hm.x.toFixed(1)} ${(hm.y+1.6).toFixed(1)} L ${(hm.x-1.3).toFixed(1)} ${(hm.y+.4).toFixed(1)} Z`;
+    // home plate as a real 17in pentagon on the GROUND (point toward the catcher,
+    // -y), projected so it foreshortens with the field.
+    const plate = path([{x:-0.71,y:0.35},{x:0.71,y:0.35},{x:0.71,y:-0.3},{x:0,y:-0.85},{x:-0.71,y:-0.3}]) + ' Z';
 
     let faces = '';
     for (let i=0;i<w.wall.length-1;i++){
@@ -205,12 +212,12 @@
     // A real foul pole: a thin vertical pole from the ground up, plus a flat
     // rectangular SCREEN panel jutting into FAIR above the fence (not an orb on
     // top). n = the foul-line inward normal (into fair) for this corner.
-    const screenFt = c.base * STYLE.foulPole.screenFt;
+    const screenW = STYLE.foulPole.screenWFt;                 // 18in mesh wing (real feet)
     const pl = f => f.x.toFixed(1) + ',' + f.y.toFixed(1);
     const pole = (v, n) => {
       const b = P({...v, z:0}), t = P({...v, z:PH});
-      const zB = STYLE.wall.heightFt, zT = PH * 0.9;           // screen: fence-top -> near pole-top
-      const vi = { x: v.x + n.x*screenFt, y: v.y + n.y*screenFt };
+      const zB = STYLE.wall.heightFt, zT = PH;                // screen: fence-top -> ALL THE WAY to the pole top
+      const vi = { x: v.x + n.x*screenW, y: v.y + n.y*screenW };
       const s0=P({x:v.x,y:v.y,z:zB}), s1=P({x:v.x,y:v.y,z:zT}), s2=P({x:vi.x,y:vi.y,z:zT}), s3=P({x:vi.x,y:vi.y,z:zB});
       const screen = `<path d="M ${pl(s0)} L ${pl(s1)} L ${pl(s2)} L ${pl(s3)} Z" fill="${STYLE.colors.foulPole}" opacity=".92"/>`;
       const shaft = `<line x1="${b.x.toFixed(1)}" y1="${b.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" stroke="${STYLE.colors.foulPole}" stroke-width="0.4" stroke-linecap="round"/>`;
@@ -218,7 +225,11 @@
     };
 
     const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
-    const baseSq = ['1B','2B','3B'].map(k=>{const s=P(B[k]);return `<rect x="${(s.x-1.1).toFixed(1)}" y="${(s.y-1.1).toFixed(1)}" width="2.2" height="2.2" transform="rotate(45 ${s.x.toFixed(1)} ${s.y.toFixed(1)})" fill="#f4f7fb"/>`;}).join('');
+    // bases as ~15in squares (diamond orientation) on the GROUND, projected so
+    // they foreshorten/flatten with the field instead of staying fixed screen squares.
+    const bd = 0.9;   // half-diagonal of a 15in base, ft
+    const baseSq = ['1B','2B','3B'].map(k => { const ctr = B[k];
+      return `<path d="${path([{x:ctr.x,y:ctr.y+bd},{x:ctr.x+bd,y:ctr.y},{x:ctr.x,y:ctr.y-bd},{x:ctr.x-bd,y:ctr.y}])} Z" fill="#f4f7fb"/>`; }).join('');
 
     // ---- DIRT IS ONE SHAPE. Instead of stroking separate bands (which don't
     //      foreshorten and use their own colour), we fill the whole fair region
@@ -256,10 +267,13 @@
     // mow stripes: WORLD-space bands PROJECTED through the camera (converge +
     // foreshorten with the field), clipped to the outfield grass. HARD-edged
     // (real mow strips are hard).
+    // mow bands drawn WITHOUT a clip here, then clipped per-grass below (same bands
+    // + same config on the outfield AND the infield grass, so the stripes are one
+    // continuous mow pattern across the whole field).
     let mow=''; const bandFt = c.base * STYLE.mow.widthFt;
     for (let x=-170; x<170; x += 2*bandFt) {
       const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:250}, {x, y:250}];
-      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#outgrass)"/>`;
+      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}"/>`;
     }
 
     return `
@@ -270,6 +284,7 @@
         <linearGradient id="wallface" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.wallTop}"/><stop offset="14%" stop-color="${STYLE.colors.wallFace}"/><stop offset="100%" stop-color="${STYLE.colors.wall}"/></linearGradient>
         <radialGradient id="moundg" cx="42%" cy="36%" r="72%"><stop offset="0%" stop-color="#d9955f"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></radialGradient>
         <clipPath id="outgrass"><path d="${outGrass}"/></clipPath>
+        <clipPath id="infgrass"><path d="${grassIn}"/></clipPath>
       </defs>
       <!-- GROUND LAYER: dirt. Separate SOLID paths (fair fan + home-plate dirt)
            sharing ONE userSpaceOnUse gradient — so overlapping subpaths can't
@@ -280,12 +295,13 @@
       <!-- GRASS grows on top of the dirt (outfield); what it leaves uncovered IS the
            warning track + foul strips + infield skin — one connected dirt, one colour -->
       <path d="${outGrass}" fill="url(#grassg)"/>
-      ${mow}
+      <g clip-path="url(#outgrass)">${mow}</g>
       <!-- standing wall + lit top edge -->
       ${faces}
       <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
-      <!-- infield grass patch grows on the infield dirt -->
+      <!-- infield grass patch grows on the infield dirt (with the SAME mow stripes) -->
       <path d="${grassIn}" fill="url(#infg)"/>
+      <g clip-path="url(#infgrass)">${mow}</g>
       <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
       ${moundBody}
       <!-- chalk foul lines ride on the foul-strip dirt -->
@@ -301,13 +317,14 @@
   }
 
   // ---- camera state ----
-  const DEF = { park: 'LL', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: 12, poleH: 30, panX: 0, panY: 0 };
+  // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
+  // toggle resets them to that park's regulation. Presets only move the CAMERA.
+  const DEF = { park: 'LL', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.LL.wallHt, poleH: CFG.LL.poleHt, panX: 0, panY: 0 };
   const cam = { ...DEF };
-  // quick-look presets (starting points; fine-tune from any of them)
   const PRESETS = {
-    'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   wallH: 8,  poleH: 26, panX: 0, panY: 0 },
-    'Tilted':    { pitch: 46, yaw: 0, k: 0.003,  zoom: 1.1, wallH: 12, poleH: 30, panX: 0, panY: 0 },
-    'Broadcast': { pitch: 62, yaw: 0, k: 0.006,  zoom: 1.7, wallH: 14, poleH: 34, panX: 0, panY: -18 },
+    'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
+    'Tilted':    { pitch: 46, yaw: 0, k: 0.003,  zoom: 1.1, panX: 0, panY: 0 },
+    'Broadcast': { pitch: 62, yaw: 0, k: 0.006,  zoom: 1.7, panX: 0, panY: -18 },
   };
   const svg = document.getElementById('fld');
   const stage = document.querySelector('.stage');
@@ -354,7 +371,12 @@
   panel.querySelectorAll('.rst').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k; cam[k] = DEF[k]; syncSlider(k); draw(); }));
   panel.querySelectorAll('.pset[data-n]').forEach(b => b.addEventListener('click', () => applyAll({ ...PRESETS[b.dataset.n] })));
   const markPark = () => panel.querySelectorAll('.park').forEach(b => b.style.background = b.dataset.park===cam.park ? '#26c565' : '');
-  panel.querySelectorAll('.park').forEach(b => b.addEventListener('click', () => { cam.park = b.dataset.park; computeBase(); markPark(); draw(); }));
+  panel.querySelectorAll('.park').forEach(b => b.addEventListener('click', () => {
+    cam.park = b.dataset.park; const P = CFG[cam.park];
+    cam.wallH = P.wallHt; cam.poleH = P.poleHt;   // load this park's regulation fence/pole
+    syncSlider('wallH'); syncSlider('poleH');
+    computeBase(); markPark(); draw();
+  }));
   markPark();
   panel.querySelector('#reset').addEventListener('click', () => { Object.assign(cam, DEF); computeBase(); rows.forEach(r => syncSlider(r[0])); markPark(); draw(); });
   const toggle = document.createElement('button'); toggle.id = 'camtoggle'; toggle.textContent = '🎥'; toggle.title = 'Field camera controls';
