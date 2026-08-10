@@ -53,7 +53,7 @@
   const STYLE = {
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
-    dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.17 },   // mound size lives in CFG (real feet)
+    dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.144 },   // homeCircle 0.144*90 = 13ft radius (26ft dia, real). mound size lives in CFG (real feet)
     markers:      { baseHD: 1.4, plateScale: 1.5, chalkFoulFt: 0.5, chalkBoxFt: 0.3 },   // baseHD = base half-diagonal (ft). Real base 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for visibility. plateScale exaggerates the 17in plate. chalk widths in REAL feet (foul 4in / box 2in, lightly exaggerated) drawn as world ribbons so they scale + foreshorten.
     wall:         { panels: 6, ease: 1.7, heightFt: 12, capFt: 0.4 },   // capFt = yellow top strip height (real ft), drawn as a world band so it foreshortens/zooms with the wall
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
@@ -222,25 +222,32 @@
     // or floating out past it. All the home-plate chalk shares these box coords.
     // All chalk below is defined as WORLD point arrays and rendered via worldLine
     // (real-width ribbons) so it scales/foreshortens with the field, never screen-locked.
-    const fStart = v => { const m = Math.hypot(v.x,v.y), s = 3/(v.y/m); return {x:(v.x/m)*s, y:3}; };
-    const foulLPts = [fStart(w.wall[0]), w.wall[0]], foulRPts = [fStart(w.wall[w.wall.length-1]), w.wall[w.wall.length-1]];
-    // batter's box: real 4ft x 6ft, inside edge 6in (0.5ft) from the plate side
-    // (plate half-width 0.71ft -> inner x 1.21, outer 5.21), 3ft ahead/behind home.
-    const bboxPts = sx => [{x:sx*1.21,y:-3},{x:sx*5.21,y:-3},{x:sx*5.21,y:3},{x:sx*1.21,y:3}];   // closed
-    // catcher's box: a squared U (OPEN toward the plate), 43in wide (x +/-1.79),
-    // its two open ends starting at the BOTTOM of the batter's boxes (y -3) and
-    // running back to ~8ft from home (y -8). No top line, so it doesn't collide.
-    const catBoxPts = [{x:1.79,y:-3},{x:1.79,y:-8},{x:-1.79,y:-8},{x:-1.79,y:-3}];                // open U
+    // FOUL LINES emanate from the APEX (0,0) -- the single datum -- straight to each
+    // foul pole. On a real field the plate's two 12in edges lie ON these lines, so the
+    // line runs right out of the apex (NOT from the box top like before).
+    const foulLPts = [{x:0,y:0}, w.wall[0]], foulRPts = [{x:0,y:0}, w.wall[w.wall.length-1]];
+    // boxes are positioned relative to the PLATE, whose apex is the datum. boxYc =
+    // the plate's longitudinal centre (apex y=0 -> front edge y=1.42, mid = 0.71);
+    // the 4x6 batter's box is centred on it. Real dims, not exaggerated with the plate.
+    const boxYc = 0.71;
+    // batter's box: 4ft x 6ft, inner edge 6in off the plate (half-width 0.71 -> inner
+    // x 1.21, outer 5.21), centred lengthwise on the plate mid.
+    const bboxPts = sx => [{x:sx*1.21,y:boxYc-3},{x:sx*5.21,y:boxYc-3},{x:sx*5.21,y:boxYc+3},{x:sx*1.21,y:boxYc+3}];  // closed
+    // catcher's box: squared U (OPEN toward the plate), 43in wide (x +/-1.79); open
+    // end at the batter's-box back (boxYc-3), running back toward the backstop (y -8).
+    const catBoxPts = [{x:1.79,y:boxYc-3},{x:1.79,y:-8},{x:-1.79,y:-8},{x:-1.79,y:boxYc-3}];       // open U
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
     // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
     // consistent across both dirt paths (no seam).
     const dirtY1 = P({x:0, y:c.fCF}).y;              // far wall edge (light stop)
     const dirtY2 = P({x:0, y:-c.base*0.28}).y;       // behind-home edge (dark stop)
-    // home plate as a real 17in pentagon on the GROUND (point toward the catcher,
-    // -y), projected so it foreshortens with the field.
-    const psc = STYLE.markers.plateScale;   // exaggerate the 17in plate to match the bases
-    const plate = path([{x:-0.71*psc,y:0.35*psc},{x:0.71*psc,y:0.35*psc},{x:0.71*psc,y:-0.3*psc},{x:0,y:-0.85*psc},{x:-0.71*psc,y:-0.3*psc}]) + ' Z';
+    // home plate: APEX at the datum (0,0). 17in pentagon -> apex, two 12in edges up
+    // the foul lines to (+/-0.71, 0.71), 8.5in sides to the front corners (+/-0.71,
+    // 1.42), 17in front edge facing the pitcher. The apex points at the catcher (-y).
+    // Scaled by psc for visibility; the apex stays pinned at the datum under scaling.
+    const psc = STYLE.markers.plateScale;
+    const plate = path([{x:0,y:0},{x:0.71*psc,y:0.71*psc},{x:0.71*psc,y:1.42*psc},{x:-0.71*psc,y:1.42*psc},{x:-0.71*psc,y:0.71*psc}]) + ' Z';
 
     // yellow cap = a REAL band on the top of the wall face (z: H-capFt .. H),
     // built per-panel as a world quad so it foreshortens + scales with zoom
