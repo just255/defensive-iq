@@ -54,8 +54,8 @@
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
     dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.17 },   // mound size lives in CFG (real feet)
-    markers:      { baseHD: 1.4, plateScale: 1.5 },   // baseHD = base half-diagonal (ft). Real base is 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for game visibility. plateScale exaggerates the 17in plate to match.
-    wall:         { panels: 6, ease: 1.7, heightFt: 12 },
+    markers:      { baseHD: 1.4, plateScale: 1.5, chalkFoulFt: 0.5, chalkBoxFt: 0.3 },   // baseHD = base half-diagonal (ft). Real base 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for visibility. plateScale exaggerates the 17in plate. chalk widths in REAL feet (foul 4in / box 2in, lightly exaggerated) drawn as world ribbons so they scale + foreshorten.
+    wall:         { panels: 6, ease: 1.7, heightFt: 12, capFt: 0.4 },   // capFt = yellow top strip height (real ft), drawn as a world band so it foreshortens/zooms with the wall
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
@@ -66,13 +66,12 @@
 
   function buildWorld(c) {
     const d = c.base * SQRT1_2;
-    // 1B/3B: the on-line point (d,d)/(-d,d) is the bag's OUTER (foul-facing) corner
-    // at the base distance. Real bags sit ENTIRELY in fair with that edge ON the foul
-    // line, so shift each center inward (into fair) by half the bag: center offset of
-    // baseHD/2 on each axis makes (Cx-Cy) = -baseHD -> foul edge lands on y=x (mirror
-    // for 3B). Keeps the diamonds out of foul territory.
-    const bh = STYLE.markers.baseHD / 2;
-    const bases = { H:{x:0,y:0}, '1B':{x:d-bh,y:d+bh}, '2B':{x:0,y:2*d}, '3B':{x:-d+bh,y:d+bh} };
+    // The infield is a TRUE SQUARE with side = base: home at the apex, 2B straight up
+    // the middle (x=0), 1B/3B symmetric. These are the exact corners -> every base
+    // path = base, both diagonals = base*sqrt2. The WHOLE field scales from these, so
+    // they must be exact (do NOT bake the bag-in-fair offset in here; the corner IS the
+    // bag's foul-facing edge, and the bag is merely DRAWN inside from it -- see baseSq).
+    const bases = { H:{x:0,y:0}, '1B':{x:d,y:d}, '2B':{x:0,y:2*d}, '3B':{x:-d,y:d} };
     const fielders = {
       P:{x:0,y:c.pitch}, C:{x:0,y:-c.base*0.13},
       '1B':{x:d*1.02,y:d*0.82}, '2B':{x:d*0.60,y:2*d*0.86}, SS:{x:-d*0.60,y:2*d*0.86}, '3B':{x:-d*1.02,y:d*0.82},
@@ -165,7 +164,27 @@
     const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
     const pj = pt => { const s = P(pt); return s.x.toFixed(1)+','+s.y.toFixed(1); };
     const path = pts => 'M ' + pts.map(pj).join(' L ');
+    // worldLine: draw a polyline as a REAL-width ribbon (wFt feet) in WORLD space,
+    // then project -> it foreshortens + scales with zoom exactly like every filled
+    // area, so nothing is locked to screen pixels. Offsets each vertex by the (miter)
+    // average of its adjacent segment normals. closed=true -> a loop (evenodd annulus).
+    const worldLine = (pts, wFt, fill, opacity=0.8, closed=false) => {
+      const n = pts.length; if (n < 2) return '';
+      const m = closed ? n : n-1, sn = [];
+      for (let i=0;i<m;i++){ const a=pts[i], b=pts[(i+1)%n];
+        const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy)||1; sn.push({x:-dy/L, y:dx/L}); }
+      const vn = i => { const a = closed ? sn[(i-1+m)%m] : sn[Math.max(0,i-1)],
+                              b = closed ? sn[i%m]       : sn[Math.min(m-1,i)];
+        const x=a.x+b.x, y=a.y+b.y, L=Math.hypot(x,y)||1; return {x:x/L, y:y/L}; };
+      const h=wFt/2, Lft=[], Rgt=[];
+      for (let i=0;i<n;i++){ const v=pts[i], q=vn(i);
+        Lft.push({x:v.x+q.x*h, y:v.y+q.y*h}); Rgt.push({x:v.x-q.x*h, y:v.y-q.y*h}); }
+      const d = closed ? path(Lft)+' Z '+path(Rgt.slice().reverse())+' Z'
+                       : path(Lft.concat(Rgt.slice().reverse()))+' Z';
+      return `<path d="${d}" fill="${fill}"${closed?' fill-rule="evenodd"':''} opacity="${opacity}"/>`;
+    };
     const B = w.bases, H = STYLE.wall.heightFt, PH = STYLE.foulPole.heightFt;
+    const CF = STYLE.markers.chalkFoulFt, CB = STYLE.markers.chalkBoxFt, CK = STYLE.colors.chalk;   // chalk widths (ft) + colour
     const cen = { x:0, y:c.base*SQRT1_2 };
     const lerp = (b,f) => ({ x: cen.x+(b.x-cen.x)*f, y: cen.y+(b.y-cen.y)*f });
 
@@ -201,16 +220,17 @@
     // foul chalk starts where the (45deg) foul line crosses the batter's box TOP
     // edge (y = 3) — so it CONNECTS to the box corner instead of running through it
     // or floating out past it. All the home-plate chalk shares these box coords.
+    // All chalk below is defined as WORLD point arrays and rendered via worldLine
+    // (real-width ribbons) so it scales/foreshortens with the field, never screen-locked.
     const fStart = v => { const m = Math.hypot(v.x,v.y), s = 3/(v.y/m); return {x:(v.x/m)*s, y:3}; };
-    const foulL = path([fStart(w.wall[0]), w.wall[0]]), foulR = path([fStart(w.wall[w.wall.length-1]), w.wall[w.wall.length-1]]);
+    const foulLPts = [fStart(w.wall[0]), w.wall[0]], foulRPts = [fStart(w.wall[w.wall.length-1]), w.wall[w.wall.length-1]];
     // batter's box: real 4ft x 6ft, inside edge 6in (0.5ft) from the plate side
     // (plate half-width 0.71ft -> inner x 1.21, outer 5.21), 3ft ahead/behind home.
-    const bbox = sx => path([{x:sx*1.21,y:-3},{x:sx*5.21,y:-3},{x:sx*5.21,y:3},{x:sx*1.21,y:3}]) + ' Z';
+    const bboxPts = sx => [{x:sx*1.21,y:-3},{x:sx*5.21,y:-3},{x:sx*5.21,y:3},{x:sx*1.21,y:3}];   // closed
     // catcher's box: a squared U (OPEN toward the plate), 43in wide (x +/-1.79),
     // its two open ends starting at the BOTTOM of the batter's boxes (y -3) and
-    // running back to ~8ft from home (y -8). No top line, so it doesn't collide
-    // with the batter's boxes.
-    const catBox = path([{x:1.79,y:-3},{x:1.79,y:-8},{x:-1.79,y:-8},{x:-1.79,y:-3}]);
+    // running back to ~8ft from home (y -8). No top line, so it doesn't collide.
+    const catBoxPts = [{x:1.79,y:-3},{x:1.79,y:-8},{x:-1.79,y:-8},{x:-1.79,y:-3}];                // open U
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
     // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
@@ -222,13 +242,18 @@
     const psc = STYLE.markers.plateScale;   // exaggerate the 17in plate to match the bases
     const plate = path([{x:-0.71*psc,y:0.35*psc},{x:0.71*psc,y:0.35*psc},{x:0.71*psc,y:-0.3*psc},{x:0,y:-0.85*psc},{x:-0.71*psc,y:-0.3*psc}]) + ' Z';
 
-    let faces = '';
+    // yellow cap = a REAL band on the top of the wall face (z: H-capFt .. H),
+    // built per-panel as a world quad so it foreshortens + scales with zoom
+    // (unlike the old constant-width screen stroke, which ballooned when zoomed out).
+    const capFt = STYLE.wall.capFt;
+    let faces = '', caps = '';
     for (let i=0;i<w.wall.length-1;i++){
       const a=w.wall[i], b=w.wall[i+1];
       const quad=[{...a,z:0},{...b,z:0},{...b,z:H},{...a,z:H}];
       faces += `<path d="${path(quad)} Z" fill="url(#wallface)" stroke="none"/>`;
+      const cap=[{...a,z:H-capFt},{...b,z:H-capFt},{...b,z:H},{...a,z:H}];
+      caps += `<path d="${path(cap)} Z" fill="${STYLE.colors.wallCap}" stroke="none"/>`;
     }
-    const topEdge = path(w.wall.map(v=>({...v,z:H})));
     // A real foul pole: a thin vertical pole from the ground up, plus a flat
     // rectangular SCREEN panel jutting into FAIR above the fence (not an orb on
     // top). n = the foul-line inward normal (into fair) for this corner.
@@ -247,8 +272,13 @@
     const fld = Object.entries(w.fielders).map(([k,p])=>{const s=P(p);return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.1" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5"/><text x="${s.x.toFixed(1)}" y="${(s.y+.8).toFixed(1)}" text-anchor="middle" font-size="2.1" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`;}).join('');
     // bases as ~15in squares (diamond orientation) on the GROUND, projected so
     // they foreshorten/flatten with the field instead of staying fixed screen squares.
-    const bd = STYLE.markers.baseHD;   // base half-diagonal, ft (see STYLE.markers)
-    const baseSq = ['1B','2B','3B'].map(k => { const ctr = B[k];
+    const bd = STYLE.markers.baseHD, bh = bd/2;   // base half-diagonal, ft (see STYLE.markers)
+    // 1B/3B bags are DRAWN inside from the square corner so they sit fully in fair,
+    // with their foul-facing edge along the foul line (centered on the corner). The
+    // measured corner in B is untouched. 2B is centered on its corner. Offsets are
+    // along each foul line's inward (fair) normal: 1B -> (-bh,+bh), 3B -> (+bh,+bh).
+    const bagCtr = { '1B':{x:B['1B'].x-bh, y:B['1B'].y+bh}, '2B':B['2B'], '3B':{x:B['3B'].x+bh, y:B['3B'].y+bh} };
+    const baseSq = ['1B','2B','3B'].map(k => { const ctr = bagCtr[k];
       return `<path d="${path([{x:ctr.x,y:ctr.y+bd},{x:ctr.x+bd,y:ctr.y},{x:ctr.x,y:ctr.y-bd},{x:ctr.x-bd,y:ctr.y}])} Z" fill="#f4f7fb"/>`; }).join('');
 
     // ---- DIRT IS ONE SHAPE. Instead of stroking separate bands (which don't
@@ -318,19 +348,19 @@
       <g clip-path="url(#outgrass)">${mow}</g>
       <!-- standing wall + lit top edge -->
       ${faces}
-      <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallCap}" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+      ${caps}
       <!-- infield grass patch grows on the infield dirt (with the SAME mow stripes) -->
       <path d="${grassIn}" fill="url(#infg)"/>
       <g clip-path="url(#infgrass)">${mow}</g>
       <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
       ${moundBody}
-      <!-- chalk: foul lines ~4in, box lines ~2in -> foul ~2x the box width (real
-           ratio); exaggerated for visibility since a literal line would be sub-pixel -->
-      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width="1.1" opacity=".8"/>
-      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width="1.1" opacity=".8"/>
-      <path d="${bbox(-1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".55" opacity=".8"/>
-      <path d="${bbox(1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".55" opacity=".8"/>
-      <path d="${catBox}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".55" opacity=".8"/>
+      <!-- chalk as REAL-width world ribbons (foul ~4in : box ~2in), via worldLine so
+           they foreshorten + scale with the field instead of ballooning when zoomed out -->
+      ${worldLine(foulLPts, CF, CK)}
+      ${worldLine(foulRPts, CF, CK)}
+      ${worldLine(bboxPts(-1), CB, CK, 0.8, true)}
+      ${worldLine(bboxPts(1),  CB, CK, 0.8, true)}
+      ${worldLine(catBoxPts,   CB, CK)}
       <path d="${plate}" fill="#f4f7fb"/>
       ${baseSq}
       ${fld}
