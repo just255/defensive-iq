@@ -43,11 +43,14 @@
   const SQRT1_2 = Math.SQRT1_2;
   const polar = (deg, depth) => { const r = deg * Math.PI / 180; return { x: depth * Math.sin(r), y: depth * Math.cos(r) }; };
 
-  const CFG = { LL: { name: 'Little League', base: 60, pitch: 46, fLF: 200, fCF: 200, fRF: 200 } };
+  // moundR/moundH are REAL feet (the mound is a fixed size, NOT a fraction of the
+  // base): 18-ft diameter (9-ft radius) at every level; Little League height is
+  // 6 inches (0.5 ft) vs 10 inches at HS/college/MLB.
+  const CFG = { LL: { name: 'Little League', base: 60, pitch: 46, fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5 } };
   const STYLE = {
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
-    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135, moundHeightFt: 0.016 },
+    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17 },   // mound size lives in CFG (real feet)
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
     foulPole:     { heightFt: 30, screenFt: 0.045 },   // screen panel width jutting into fair (fraction of base)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
@@ -164,7 +167,7 @@
     // side band + a disc, so the silhouette curves and rounds off at the top instead
     // of being a tall flat-topped frustum. Kept low (moundHeightFt) so it sits close
     // to the ground. One SOLID piece at any camera angle.
-    const mR = c.base*STYLE.dirt.mound, mH = c.base*STYLE.dirt.moundHeightFt, RN = 4;
+    const mR = c.moundR, mH = c.moundH, RN = 4;   // real feet: 9-ft radius, 0.5-ft (6in) LL height
     const mRing = t => { const a = t*Math.PI/2; return circPts(0, c.pitch, mR*Math.cos(a*0.72), 20).map(p=>P({x:p.x,y:p.y,z:mH*Math.sin(a)})); };
     const mrings = Array.from({length:RN}, (_,i)=>mRing(i/(RN-1)));
     const ps = a => 'M ' + a.map(s=>s.x.toFixed(1)+','+s.y.toFixed(1)).join(' L ') + ' Z';
