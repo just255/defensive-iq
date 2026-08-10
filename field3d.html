@@ -212,11 +212,24 @@
     const iWall = w.wall.map(v => { const m = Math.hypot(v.x,v.y); const s = (m-trackFt)/m; return {x:v.x*s, y:v.y*s}; });
     const dR = nrm(w.wall[w.wall.length-1]), nR = {x:-dR.y, y:dR.x};   // right foul inward normal (into fair)
     const dL = nrm(w.wall[0]),               nL = {x: dL.y, y:-dL.x};  // left foul inward normal
-    const off = (p,n) => ({x:p.x+n.x*foulFt, y:p.y+n.y*foulFt});
-    const arcLR = arcPts(0,cyw,Rarc,thL,thR,24);                       // grass line, left corner -> right corner
-    const outGrass = path([ off({x:tt,y:tt},nR), off(iWall[iWall.length-1],nR),
-                            ...iWall.slice().reverse(), off(iWall[0],nL), off({x:-tt,y:tt},nL),
-                            ...arcLR ]) + ' Z';
+    // The outfield grass boundary along a foul line is that foul line pushed
+    // foulFt into fair. It meets the dirt at TRUE intersection POINTS — where the
+    // offset line crosses the grass-line arc (inner) and the inset wall (outer) —
+    // NOT via a perpendicular cap, which used to leave a notch/seam at each of the
+    // 4 foul-line corners.
+    const arcHit = (A,D) => { const E={x:A.x, y:A.y-cyw};              // circle center (0,cyw)
+      const b=E.x*D.x+E.y*D.y, s=-b+Math.sqrt(Math.max(0, b*b-(E.x*E.x+E.y*E.y-Rarc*Rarc)));
+      return {x:A.x+D.x*s, y:A.y+D.y*s}; };
+    const segHit = (A,D,P,Q) => { const Dq={x:Q.x-P.x,y:Q.y-P.y}, den=D.x*Dq.y-D.y*Dq.x;
+      if(Math.abs(den)<1e-9) return Q;
+      const t=((P.x-A.x)*Dq.y-(P.y-A.y)*Dq.x)/den; return {x:A.x+D.x*t, y:A.y+D.y*t}; };
+    const AR = {x:foulFt*nR.x, y:foulFt*nR.y}, AL = {x:foulFt*nL.x, y:foulFt*nL.y};  // points on the offset foul lines
+    const N = iWall.length;
+    const innerR = arcHit(AR, dR), innerL = arcHit(AL, dL);           // grass foul edge meets the arc
+    const outerR = segHit(AR, dR, iWall[N-2], iWall[N-1]), outerL = segHit(AL, dL, iWall[1], iWall[0]); // meets warning-track edge
+    const angOf = p => Math.atan2(p.y-cyw, p.x);
+    const arcSeg = arcPts(0, cyw, Rarc, angOf(innerL), angOf(innerR), 24);            // grass line between the two corners
+    const outGrass = path([ innerR, outerR, ...iWall.slice(1, N-1).reverse(), outerL, innerL, ...arcSeg ]) + ' Z';
 
     // mow stripes: WORLD-space bands PROJECTED through the camera (converge +
     // foreshorten with the field), clipped to the outfield grass. HARD-edged
