@@ -137,10 +137,14 @@
     const p = cam.pitch*Math.PI/180, cP = Math.cos(p), sP = Math.sin(p), k = cam.k;
     const y = (cam.yaw||0)*Math.PI/180, cY = Math.cos(y), sY = Math.sin(y);
     const S = BASE.S0 * cam.zoom, cx = VB.w/2 + cam.panX, homeY = BASE.homeY0 + cam.panY;
+    const fwd = cam.fwd || 0, camZ = cam.camZ || 0;
     return (pt) => {
-      // yaw: orbit the camera around home (vertical axis) before the pitch projection
-      const rx = pt.x*cY - pt.y*sY, ry = pt.x*sY + pt.y*cY;
-      const r = rawAt({ x: rx, y: ry, z: pt.z }, cP, sP, k);
+      // fwd: dolly the camera along the field depth (world y); camZ: move the camera
+      // up/down the z axis (world height). Both are world-space translations applied
+      // before yaw + the pitch projection, so they reproject with perspective.
+      const py = pt.y - fwd;
+      const rx = pt.x*cY - py*sY, ry = pt.x*sY + py*cY;
+      const r = rawAt({ x: rx, y: ry, z: (pt.z||0) - camZ }, cP, sP, k);
       return { x: cx + r.X*S, y: homeY - r.Y*S };
     };
   }
@@ -192,6 +196,9 @@
     // batter's box: real 4ft x 6ft, inside edge 6in (0.5ft) from the plate side
     // (plate half-width 0.71ft -> inner x 1.21, outer 5.21), 3ft ahead/behind home.
     const bbox = sx => path([{x:sx*1.21,y:-3},{x:sx*5.21,y:-3},{x:sx*5.21,y:3},{x:sx*1.21,y:3}]) + ' Z';
+    // catcher's box: real 43in wide (x +/-1.79) x 8ft long, measured back from the
+    // plate's back point (~y -0.85) toward the backstop (-y).
+    const catBox = path([{x:-1.79,y:-0.85},{x:1.79,y:-0.85},{x:1.79,y:-8.85},{x:-1.79,y:-8.85}]) + ' Z';
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
     // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
@@ -304,11 +311,12 @@
       <g clip-path="url(#infgrass)">${mow}</g>
       <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
       ${moundBody}
-      <!-- chalk foul lines ride on the foul-strip dirt -->
-      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
-      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
-      <path d="${bbox(-1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>
-      <path d="${bbox(1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>
+      <!-- chalk: foul lines, batter's boxes, catcher's box (a touch thicker) -->
+      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".6" opacity=".75"/>
+      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".6" opacity=".75"/>
+      <path d="${bbox(-1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".5" opacity=".75"/>
+      <path d="${bbox(1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".5" opacity=".75"/>
+      <path d="${catBox}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".5" opacity=".75"/>
       <path d="${plate}" fill="#f4f7fb"/>
       ${baseSq}
       ${fld}
@@ -319,7 +327,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'LL', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.LL.wallHt, poleH: CFG.LL.poleHt, panX: 0, panY: 0 };
+  const DEF = { park: 'LL', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.LL.wallHt, poleH: CFG.LL.poleHt, panX: 0, panY: 0, fwd: 0, camZ: 0 };
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -346,6 +354,8 @@
     ['poleH', 0, 120, 1, 'ft', 'pole height'],
     ['panX', -400, 400, 2, '', 'pan ←→'],
     ['panY', -400, 400, 2, '', 'pan ↑↓'],
+    ['fwd', -150, 350, 2, 'ft', 'dolly fwd/bk'],
+    ['camZ', -150, 150, 1, 'ft', 'cam Z (height)'],
   ];
   const draw = () => {
     STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
@@ -382,6 +392,33 @@
   const toggle = document.createElement('button'); toggle.id = 'camtoggle'; toggle.textContent = '🎥'; toggle.title = 'Field camera controls';
   toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
   document.body.appendChild(toggle);
+
+  // ---- keyboard + mouse camera controls ----
+  //  WASD ............... W/S dolly forward/back, A/D strafe left/right
+  //  right-drag ......... pitch (up/down) + rotate/yaw (left/right)
+  //  ctrl + right-drag .. tilt the scene (cam Z up/down, pan left/right)
+  //  wheel .............. zoom     ·     ctrl + wheel .. perspective
+  (function controls() {
+    const lim = k => { const r = rows.find(x => x[0] === k); return r ? [r[1], r[2]] : [-1e9, 1e9]; };
+    const apply = obj => { for (const k in obj) { const [lo,hi] = lim(k); cam[k] = Math.max(lo, Math.min(hi, cam[k] + obj[k])); } for (const k in obj) syncSlider(k); draw(); };
+    addEventListener('keydown', e => {
+      const t = e.target && e.target.tagName; if (t === 'INPUT' || t === 'TEXTAREA') return;
+      const k = e.key.toLowerCase();
+      if (k === 'w') apply({ fwd: 6 }); else if (k === 's') apply({ fwd: -6 });
+      else if (k === 'a') apply({ panX: -10 }); else if (k === 'd') apply({ panX: 10 });
+    });
+    let drag = null;
+    stage.addEventListener('contextmenu', e => e.preventDefault());
+    stage.addEventListener('mousedown', e => { if (e.button === 2) { e.preventDefault(); drag = { x: e.clientX, y: e.clientY, ctrl: e.ctrlKey }; } });
+    addEventListener('mousemove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.ctrl = e.ctrlKey;
+      if (drag.ctrl) apply({ camZ: -dy * 0.4, panY: dx * 0.6 });
+      else apply({ pitch: -dy * 0.25, yaw: dx * 0.3 });
+    });
+    addEventListener('mouseup', () => { drag = null; });
+    stage.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey) apply({ k: -e.deltaY * 0.00002 }); else apply({ zoom: -e.deltaY * 0.0015 }); }, { passive: false });
+  })();
 
   let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { fitViewport(); draw(); }, 120); });
   fitViewport();
