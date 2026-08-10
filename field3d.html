@@ -47,7 +47,7 @@
   const STYLE = {
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
-    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135, moundHeightFt: 0.04 },
+    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135, moundHeightFt: 0.016 },
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
     foulPole:     { heightFt: 30, screenFt: 0.045 },   // screen panel width jutting into fair (fraction of base)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
@@ -159,22 +159,21 @@
     const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
     const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
     const homeCircle = path(circPts(0,0,c.base*STYLE.dirt.homeCircle,24)) + ' Z';
-    // the mound is a LOW raised dome: a footprint on the ground (z=0) that anchors
-    // it, plus a top raised by moundH. The footprint showing at the near edge reads
-    // as the front slope, so it sits on the ground instead of levitating.
-    const moundH = c.base*STYLE.dirt.moundHeightFt;
-    const moundPts = circPts(0, c.pitch, c.base*STYLE.dirt.mound, 22);
-    const mBot = moundPts.map(p=>P({x:p.x,y:p.y,z:0}));       // projected footprint ring
-    // top ring is SMALLER than the base -> a low frustum with sloped sides (a real
-    // mound tapers), not a straight-walled cylinder.
-    const mTop = circPts(0, c.pitch, c.base*STYLE.dirt.mound*0.6, 22).map(p=>P({x:p.x,y:p.y,z:moundH}));
-    const ptsStr = a => 'M ' + a.map(s=>s.x.toFixed(1)+','+s.y.toFixed(1)).join(' L ') + ' Z';
-    const moundBase = ptsStr(mBot), moundTop = ptsStr(mTop);
-    // SIDE WALL connecting footprint -> top so the mound is SOLID (at steep camera
-    // angles the two rings separate; without the side you'd see two floating discs).
+    // the mound is a LOW ROUNDED dome. Build it from stacked rings on a dome profile
+    // (radius shrinks + height rises along a quarter-sine), each level drawn as a
+    // side band + a disc, so the silhouette curves and rounds off at the top instead
+    // of being a tall flat-topped frustum. Kept low (moundHeightFt) so it sits close
+    // to the ground. One SOLID piece at any camera angle.
+    const mR = c.base*STYLE.dirt.mound, mH = c.base*STYLE.dirt.moundHeightFt, RN = 4;
+    const mRing = t => { const a = t*Math.PI/2; return circPts(0, c.pitch, mR*Math.cos(a*0.72), 20).map(p=>P({x:p.x,y:p.y,z:mH*Math.sin(a)})); };
+    const mrings = Array.from({length:RN}, (_,i)=>mRing(i/(RN-1)));
+    const ps = a => 'M ' + a.map(s=>s.x.toFixed(1)+','+s.y.toFixed(1)).join(' L ') + ' Z';
     const xl = a => a.reduce((m,p)=>p.x<m.x?p:m), xr = a => a.reduce((m,p)=>p.x>m.x?p:m);
-    const bl=xl(mBot), br=xr(mBot), tl=xl(mTop), tr=xr(mTop);
-    const moundSide = `M ${bl.x.toFixed(1)},${bl.y.toFixed(1)} L ${tl.x.toFixed(1)},${tl.y.toFixed(1)} L ${tr.x.toFixed(1)},${tr.y.toFixed(1)} L ${br.x.toFixed(1)},${br.y.toFixed(1)} Z`;
+    let moundBody = `<path d="${ps(mrings[0])}" fill="url(#dirtg)"/>`;
+    for (let i=1;i<RN;i++){ const A=mrings[i-1], B=mrings[i], al=xl(A),ar=xr(A),blp=xl(B),brp=xr(B);
+      moundBody += `<path d="M ${al.x.toFixed(1)},${al.y.toFixed(1)} L ${blp.x.toFixed(1)},${blp.y.toFixed(1)} L ${brp.x.toFixed(1)},${brp.y.toFixed(1)} L ${ar.x.toFixed(1)},${ar.y.toFixed(1)} Z" fill="url(#dirtg)"/>`;
+      moundBody += `<path d="${ps(B)}" fill="${i===RN-1?'url(#moundg)':'url(#dirtg)'}"/>`;
+    }
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
     const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
     const foulL = path([B.H, w.wall[0]]), foulR = path([B.H, w.wall[w.wall.length-1]]);
@@ -278,11 +277,8 @@
       <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
       <!-- infield grass patch grows on the infield dirt -->
       <path d="${grassIn}" fill="url(#infg)"/>
-      <!-- the mound: footprint (ground) + SIDE wall + raised top = one SOLID dome,
-           so the top can't separate into a floating disc at steep camera angles -->
-      <path d="${moundBase}" fill="url(#dirtg)"/>
-      <path d="${moundSide}" fill="url(#dirtg)"/>
-      <path d="${moundTop}" fill="url(#moundg)"/>
+      <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
+      ${moundBody}
       <!-- chalk foul lines ride on the foul-strip dirt -->
       <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
       <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
