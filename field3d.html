@@ -46,7 +46,10 @@
   // moundR/moundH are REAL feet (the mound is a fixed size, NOT a fraction of the
   // base): 18-ft diameter (9-ft radius) at every level; Little League height is
   // 6 inches (0.5 ft) vs 10 inches at HS/college/MLB.
-  const CFG = { LL: { name: 'Little League', base: 60, pitch: 46, fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5 } };
+  const CFG = {
+    LL:  { name: 'Little League', base: 60, pitch: 46,   fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5 },   // 18-ft dia, 6in high
+    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833 }, // 18-ft dia, 10in high
+  };
   const STYLE = {
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
@@ -119,7 +122,7 @@
   // scaling its height back down. Home (origin) is the pivot, pinned near bottom.
   let BASE = null;
   function computeBase() {
-    const w = buildWorld(CFG.LL);
+    const w = buildWorld(CFG[cam.park] || CFG.LL);
     const p = DEF.pitch*Math.PI/180, cP = Math.cos(p), sP = Math.sin(p), k = DEF.k;
     const H = DEF.wallH, PH = DEF.poleH, ext = [];
     w.wall.forEach(v => { ext.push({x:v.x,y:v.y,z:0}); ext.push({x:v.x,y:v.y,z:H}); });
@@ -146,7 +149,7 @@
   const circPts = (cxw,cyw,r,n) => Array.from({length:n},(_,i)=>{const a=2*Math.PI*i/n;return{x:cxw+r*Math.cos(a),y:cyw+r*Math.sin(a)};});
 
   function renderField(cam) {
-    const c = CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
+    const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
     const pj = pt => { const s = P(pt); return s.x.toFixed(1)+','+s.y.toFixed(1); };
     const path = pts => 'M ' + pts.map(pj).join(' L ');
     const B = w.bases, H = STYLE.wall.heightFt, PH = STYLE.foulPole.heightFt;
@@ -167,15 +170,18 @@
     // side band + a disc, so the silhouette curves and rounds off at the top instead
     // of being a tall flat-topped frustum. Kept low (moundHeightFt) so it sits close
     // to the ground. One SOLID piece at any camera angle.
-    const mR = c.moundR, mH = c.moundH, RN = 4;   // real feet: 9-ft radius, 0.5-ft (6in) LL height
-    const mRing = t => { const a = t*Math.PI/2; return circPts(0, c.pitch, mR*Math.cos(a*0.72), 20).map(p=>P({x:p.x,y:p.y,z:mH*Math.sin(a)})); };
+    const mR = c.moundR, mH = c.moundH, RN = 7;   // real feet: 9-ft radius, 0.5-ft (6in) LL height
+    // rings converge to a rounded TIP (cos ~-> 0 near the top) so there is no flat
+    // cap disc, and all rings share the dirt gradient so it reads as ONE smooth
+    // dome, not a stack with a lighter disc sitting on top.
+    const mRing = t => { const a = t*Math.PI/2; return circPts(0, c.pitch, Math.max(mR*Math.cos(a*0.97), 0.2), 22).map(p=>P({x:p.x,y:p.y,z:mH*Math.sin(a)})); };
     const mrings = Array.from({length:RN}, (_,i)=>mRing(i/(RN-1)));
     const ps = a => 'M ' + a.map(s=>s.x.toFixed(1)+','+s.y.toFixed(1)).join(' L ') + ' Z';
     const xl = a => a.reduce((m,p)=>p.x<m.x?p:m), xr = a => a.reduce((m,p)=>p.x>m.x?p:m);
     let moundBody = `<path d="${ps(mrings[0])}" fill="url(#dirtg)"/>`;
     for (let i=1;i<RN;i++){ const A=mrings[i-1], B=mrings[i], al=xl(A),ar=xr(A),blp=xl(B),brp=xr(B);
       moundBody += `<path d="M ${al.x.toFixed(1)},${al.y.toFixed(1)} L ${blp.x.toFixed(1)},${blp.y.toFixed(1)} L ${brp.x.toFixed(1)},${brp.y.toFixed(1)} L ${ar.x.toFixed(1)},${ar.y.toFixed(1)} Z" fill="url(#dirtg)"/>`;
-      moundBody += `<path d="${ps(B)}" fill="${i===RN-1?'url(#moundg)':'url(#dirtg)'}"/>`;
+      moundBody += `<path d="${ps(B)}" fill="url(#dirtg)"/>`;
     }
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
     const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
@@ -295,7 +301,7 @@
   }
 
   // ---- camera state ----
-  const DEF = { pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: 12, poleH: 30, panX: 0, panY: 0 };
+  const DEF = { park: 'LL', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: 12, poleH: 30, panX: 0, panY: 0 };
   const cam = { ...DEF };
   // quick-look presets (starting points; fine-tune from any of them)
   const PRESETS = {
@@ -333,7 +339,8 @@
   // build the overlay panel + 🎥 toggle (same pattern as the game)
   const panel = document.createElement('div'); panel.id = 'campanel'; panel.hidden = true;
   const presetBar = '<div class="presets">' + Object.keys(PRESETS).map(n => `<button class="pset" data-n="${n}">${n}</button>`).join('') + '</div>';
-  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + presetBar + rows.map(([k,min,max,st,u,l]) =>
+  const parkBar = '<div class="presets">' + Object.keys(CFG).map(k => `<button class="park pset" data-park="${k}">${k}</button>`).join('') + '</div>';
+  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + parkBar + presetBar + rows.map(([k,min,max,st,u,l]) =>
     `<label><span>${l}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${st}" value="${cam[k]}"><b id="v-${k}">${cam[k]}${u}</b><button class="rst" data-k="${k}" title="reset ${l}">↺</button></label>`
   ).join('') + '<div class="row"><button id="reset">reset all</button></div><pre id="out"></pre>';
   document.body.appendChild(panel);
@@ -345,8 +352,11 @@
     cam[inp.dataset.k] = parseFloat(inp.value); syncLabel(inp.dataset.k); draw();
   }));
   panel.querySelectorAll('.rst').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k; cam[k] = DEF[k]; syncSlider(k); draw(); }));
-  panel.querySelectorAll('.pset').forEach(b => b.addEventListener('click', () => applyAll({ ...PRESETS[b.dataset.n] })));
-  panel.querySelector('#reset').addEventListener('click', () => applyAll({ ...DEF }));
+  panel.querySelectorAll('.pset[data-n]').forEach(b => b.addEventListener('click', () => applyAll({ ...PRESETS[b.dataset.n] })));
+  const markPark = () => panel.querySelectorAll('.park').forEach(b => b.style.background = b.dataset.park===cam.park ? '#26c565' : '');
+  panel.querySelectorAll('.park').forEach(b => b.addEventListener('click', () => { cam.park = b.dataset.park; computeBase(); markPark(); draw(); }));
+  markPark();
+  panel.querySelector('#reset').addEventListener('click', () => { Object.assign(cam, DEF); computeBase(); rows.forEach(r => syncSlider(r[0])); markPark(); draw(); });
   const toggle = document.createElement('button'); toggle.id = 'camtoggle'; toggle.textContent = '🎥'; toggle.title = 'Field camera controls';
   toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
   document.body.appendChild(toggle);
