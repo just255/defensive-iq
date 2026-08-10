@@ -365,6 +365,12 @@
            they foreshorten + scale with the field instead of ballooning when zoomed out -->
       ${worldLine(foulLPts, CF, CK)}
       ${worldLine(foulRPts, CF, CK)}
+      <!-- the foul line must NEVER be visible inside a batter's box. A straight 45deg
+           line from the apex geometrically clips the box corner, so re-fill each box
+           interior with the SAME dirt (they sit inside the home circle) to occlude the
+           line, THEN stroke the box outline on top -> line runs under the box, unseen. -->
+      <path d="${path(bboxPts(-1))} Z" fill="url(#dirtg)"/>
+      <path d="${path(bboxPts(1))} Z" fill="url(#dirtg)"/>
       ${worldLine(bboxPts(-1), CB, CK, 0.8, true)}
       ${worldLine(bboxPts(1),  CB, CK, 0.8, true)}
       ${worldLine(catBoxPts,   CB, CK)}
