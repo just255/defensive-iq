@@ -53,13 +53,13 @@
   const STYLE = {
     arc:          { peak: 1.62, radius: 1.12 },
     infieldGrass: { scale: 0.92, cutout: 0.11 },
-    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17 },   // mound size lives in CFG (real feet)
+    dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.17 },   // mound size lives in CFG (real feet)
     wall:         { panels: 6, ease: 1.7, heightFt: 12 },
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
-      track:'#a5794c', wall:'#0a1f14', wallFace:'#0c241a', wallTop:'#5b8a6c', chalk:'#eef3f9', foulPole:'#e8c24a',
+      track:'#a5794c', wall:'#0a1f14', wallFace:'#0c241a', wallTop:'#5b8a6c', wallCap:'#f4d43a', chalk:'#eef3f9', foulPole:'#e8c24a',
     },
   };
 
@@ -310,7 +310,7 @@
       <g clip-path="url(#outgrass)">${mow}</g>
       <!-- standing wall + lit top edge -->
       ${faces}
-      <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallCap}" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
       <!-- infield grass patch grows on the infield dirt (with the SAME mow stripes) -->
       <path d="${grassIn}" fill="url(#infg)"/>
       <g clip-path="url(#infgrass)">${mow}</g>
