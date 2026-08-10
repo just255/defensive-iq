@@ -159,8 +159,13 @@
     const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
     const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
     const homeCircle = path(circPts(0,0,c.base*STYLE.dirt.homeCircle,24)) + ' Z';
-    const moundH = c.base*STYLE.dirt.moundHeightFt;   // the mound is raised off the ground plane
-    const mound = path(circPts(0,c.pitch,c.base*STYLE.dirt.mound,22).map(p=>({x:p.x,y:p.y,z:moundH}))) + ' Z';
+    // the mound is a LOW raised dome: a footprint on the ground (z=0) that anchors
+    // it, plus a top raised by moundH. The footprint showing at the near edge reads
+    // as the front slope, so it sits on the ground instead of levitating.
+    const moundH = c.base*STYLE.dirt.moundHeightFt;
+    const moundPts = circPts(0, c.pitch, c.base*STYLE.dirt.mound, 22);
+    const moundBase = path(moundPts.map(p=>({x:p.x,y:p.y,z:0}))) + ' Z';
+    const moundTop  = path(moundPts.map(p=>({x:p.x,y:p.y,z:moundH}))) + ' Z';
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
     const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
     const foulL = path([B.H, w.wall[0]]), foulR = path([B.H, w.wall[w.wall.length-1]]);
@@ -264,8 +269,10 @@
       <path d="${topEdge}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round"/>
       <!-- infield grass patch grows on the infield dirt -->
       <path d="${grassIn}" fill="url(#infg)"/>
-      <!-- the mound is the one ELEVATED feature: raised dirt sitting above the grass -->
-      <path d="${mound}" fill="url(#moundg)"/>
+      <!-- the mound: footprint on the ground (anchors it) + a raised top, so it
+           reads as a low raised dome rather than a levitating disc -->
+      <path d="${moundBase}" fill="url(#dirtg)"/>
+      <path d="${moundTop}" fill="url(#moundg)"/>
       <!-- chalk foul lines ride on the foul-strip dirt -->
       <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
       <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".7"/>
