@@ -316,12 +316,13 @@
       <g clip-path="url(#infgrass)">${mow}</g>
       <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
       ${moundBody}
-      <!-- chalk: foul lines, batter's boxes, catcher's box (a touch thicker) -->
-      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".6" opacity=".75"/>
-      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".6" opacity=".75"/>
-      <path d="${bbox(-1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".5" opacity=".75"/>
-      <path d="${bbox(1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".5" opacity=".75"/>
-      <path d="${catBox}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".5" opacity=".75"/>
+      <!-- chalk: foul lines ~4in, box lines ~2in -> foul ~2x the box width (real
+           ratio); exaggerated for visibility since a literal line would be sub-pixel -->
+      <path d="${foulL}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width="1.1" opacity=".8"/>
+      <path d="${foulR}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width="1.1" opacity=".8"/>
+      <path d="${bbox(-1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".55" opacity=".8"/>
+      <path d="${bbox(1)}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".55" opacity=".8"/>
+      <path d="${catBox}" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".55" opacity=".8"/>
       <path d="${plate}" fill="#f4f7fb"/>
       ${baseSq}
       ${fld}
