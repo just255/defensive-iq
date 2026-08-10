@@ -227,11 +227,13 @@
     // the 4x6 batter's box is centred on it. Real dims, not exaggerated with the plate.
     const boxYc = 0.71;
     // FOUL LINES are ANCHORED at the apex (collinear with apex->pole at 45deg, so the
-    // plate's 12in edges still define their direction) but the DRAWN line STARTS at the
-    // batter's-box FRONT edge (y = boxYc+3; on y=+/-x that means x = +/-that) and runs
-    // out to the pole -- nothing is drawn between home and the box.
-    const boxFront = boxYc + 3;
-    const foulLPts = [{x:-boxFront, y:boxFront}, w.wall[0]], foulRPts = [{x:boxFront, y:boxFront}, w.wall[w.wall.length-1]];
+    // plate's 12in edges still define their direction) but the DRAWN line becomes visible
+    // AT the batter's-box FRONT edge (y = boxYc+3) and runs out to the pole -- nothing is
+    // drawn between home and the box. We start the ribbon 2ft INSIDE the box and let the
+    // box dirt-fill occlude it up to the front edge, so the visible end is cut FLUSH along
+    // that horizontal edge (not a 90deg/diagonal ribbon cap).
+    const boxFront = boxYc + 3, foulStart = boxFront - 2;
+    const foulLPts = [{x:-foulStart, y:foulStart}, w.wall[0]], foulRPts = [{x:foulStart, y:foulStart}, w.wall[w.wall.length-1]];
     // batter's box: 4ft x 6ft, inner edge 6in off the plate (half-width 0.71 -> inner
     // x 1.21, outer 5.21), centred lengthwise on the plate mid.
     const bboxPts = sx => [{x:sx*1.21,y:boxYc-3},{x:sx*5.21,y:boxYc-3},{x:sx*5.21,y:boxYc+3},{x:sx*1.21,y:boxYc+3}];  // closed
