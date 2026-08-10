@@ -222,14 +222,16 @@
     // or floating out past it. All the home-plate chalk shares these box coords.
     // All chalk below is defined as WORLD point arrays and rendered via worldLine
     // (real-width ribbons) so it scales/foreshortens with the field, never screen-locked.
-    // FOUL LINES emanate from the APEX (0,0) -- the single datum -- straight to each
-    // foul pole. On a real field the plate's two 12in edges lie ON these lines, so the
-    // line runs right out of the apex (NOT from the box top like before).
-    const foulLPts = [{x:0,y:0}, w.wall[0]], foulRPts = [{x:0,y:0}, w.wall[w.wall.length-1]];
     // boxes are positioned relative to the PLATE, whose apex is the datum. boxYc =
     // the plate's longitudinal centre (apex y=0 -> front edge y=1.42, mid = 0.71);
     // the 4x6 batter's box is centred on it. Real dims, not exaggerated with the plate.
     const boxYc = 0.71;
+    // FOUL LINES are ANCHORED at the apex (collinear with apex->pole at 45deg, so the
+    // plate's 12in edges still define their direction) but the DRAWN line STARTS at the
+    // batter's-box FRONT edge (y = boxYc+3; on y=+/-x that means x = +/-that) and runs
+    // out to the pole -- nothing is drawn between home and the box.
+    const boxFront = boxYc + 3;
+    const foulLPts = [{x:-boxFront, y:boxFront}, w.wall[0]], foulRPts = [{x:boxFront, y:boxFront}, w.wall[w.wall.length-1]];
     // batter's box: 4ft x 6ft, inner edge 6in off the plate (half-width 0.71 -> inner
     // x 1.21, outer 5.21), centred lengthwise on the plate mid.
     const bboxPts = sx => [{x:sx*1.21,y:boxYc-3},{x:sx*5.21,y:boxYc-3},{x:sx*5.21,y:boxYc+3},{x:sx*1.21,y:boxYc+3}];  // closed
@@ -365,10 +367,10 @@
            they foreshorten + scale with the field instead of ballooning when zoomed out -->
       ${worldLine(foulLPts, CF, CK)}
       ${worldLine(foulRPts, CF, CK)}
-      <!-- the foul line must NEVER be visible inside a batter's box. A straight 45deg
-           line from the apex geometrically clips the box corner, so re-fill each box
-           interior with the SAME dirt (they sit inside the home circle) to occlude the
-           line, THEN stroke the box outline on top -> line runs under the box, unseen. -->
+      <!-- foul line must NEVER be visible inside a batter's box. The line now STARTS at
+           the box front edge, but its ribbon has a little width, so re-fill each box
+           interior with the SAME dirt (they sit inside the home circle) to occlude any
+           start-cap overhang, THEN stroke the box outline on top. -->
       <path d="${path(bboxPts(-1))} Z" fill="url(#dirtg)"/>
       <path d="${path(bboxPts(1))} Z" fill="url(#dirtg)"/>
       ${worldLine(bboxPts(-1), CB, CK, 0.8, true)}
