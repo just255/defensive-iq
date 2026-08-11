@@ -26,6 +26,8 @@
     background: rgba(11,18,32,.97); border: 1px solid #b8342f; border-radius: 10px; color: #e7eef7; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #wemirrorrow { display: flex; align-items: center; gap: 6px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #2a3a55; cursor: pointer; font-weight: 700; }
   #wemirrorrow input { cursor: pointer; }
+  #campanel .chkrow { display: flex; align-items: center; gap: 6px; margin: 8px 0; font-size: 11px; color: #cfe3d6; cursor: pointer; }
+  #campanel .chkrow input { cursor: pointer; }
   #wetopdown { display: block; width: 100%; margin-top: 7px; padding: 5px 8px; font-size: 10.5px; font-weight: 700;
     background: rgba(20,35,63,.92); color: #cfe3d6; border: 1px solid #2a3a55; border-radius: 7px; cursor: pointer; }
   #wetopdown:hover { background: #26c565; color: #06120b; }
@@ -431,6 +433,26 @@
     const faces = extrudeWall(EDIT.outfield, H, STYLE.colors.wallCap), caps = '';   // outfield: always yellow cap
     const backstop = extrudeWall(EDIT.backstop, bsH, null);                          // backstop: no cap
     const sideWalls = extrudeWall(EDIT.sideR, sideH, STYLE.colors.slab) + extrudeWall(EDIT.sideL, sideH, STYLE.colors.slab);
+    // FENCE DISTANCE markers, PAINTED ON the outfield wall at each vertex = its straight-line
+    // distance from home (apex at 0,0). The text is laid into the wall PLANE: we project the
+    // wall's along-tangent and up axes (per foot) at the anchor and use them as an SVG matrix,
+    // so the numbers foreshorten/tilt with the wall like real painted markers. Toggle: cam.fenceDist.
+    let fenceDist = '';
+    if (cam.fenceDist ?? true) {
+      const of = EDIT.outfield, nO = of.length;
+      // paint `txt` centered at world (wx,wy,zc), reading along ground-tangent (tx,ty), ~htFt tall
+      const paintOnWall = (wx,wy,zc,tx,ty,htFt,txt,color) => {
+        const O=P({x:wx,y:wy,z:zc}), R=P({x:wx+tx,y:wy+ty,z:zc}), U=P({x:wx,y:wy,z:zc+1});
+        const rx=R.x-O.x, ry=R.y-O.y, ux=U.x-O.x, uy=U.y-O.y, s=htFt;   // per-foot screen bases
+        const m=[(rx*s).toFixed(3),(ry*s).toFixed(3),(-ux*s).toFixed(3),(-uy*s).toFixed(3),O.x.toFixed(2),O.y.toFixed(2)];
+        return `<text transform="matrix(${m.join(',')})" font-size="1" text-anchor="middle" dominant-baseline="central" font-family="Bahnschrift,sans-serif" font-weight="700" fill="${color}" stroke="#0b0b0b" stroke-width="0.05" paint-order="stroke">${txt}</text>`;
+      };
+      for (let i=0;i<nO;i++){ const v=of[i], h=v.h ?? H; if (h < 1.5) continue;
+        const A=of[Math.max(0,i-1)], C=of[Math.min(nO-1,i+1)];
+        let tx=C.x-A.x, ty=C.y-A.y; const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+        fenceDist += paintOnWall(v.x, v.y, h*0.5, tx, ty, Math.max(2.5, Math.min(5.5, h*0.62)), ''+Math.round(Math.hypot(v.x,v.y)), '#eef3f8');
+      }
+    }
     // SCALE-REFERENCE billboard: an upright person image, feet on the ground at (bbX,bbY),
     // sized so bbH ft maps to its on-screen height (player.png is 637x1680; the batter is
     // ~78% of that, so bbH ~7.7 -> a ~6ft player). Screen-upright so it reads at any angle.
@@ -599,6 +621,8 @@
       <!-- standing wall + lit top edge -->
       ${faces}
       ${caps}
+      <!-- distance markers painted on the outfield fence -->
+      ${fenceDist}
       <!-- infield grass patch, raised slightly above the dirt (grass lip) -->
       ${infLip}
       <path d="${grassIn}" fill="url(#infg)"/>
@@ -642,7 +666,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 77, yaw: 0, k: 0.04, zoom: 18, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 32, strafe: 0, camZ: -6, mowOut: 1, mowIn: 0.5, bsH: 4, sideH: 6, grassD: 3, grassLip: 0.25, bbX: -3, bbY: -2, bbH: 7.75 };   // default = the batter's-eye view   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 77, yaw: 0, k: 0.04, zoom: 18, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 32, strafe: 0, camZ: -6, mowOut: 1, mowIn: 0.5, bsH: 4, sideH: 6, grassD: 3, grassLip: 0.25, bbX: -3, bbY: -2, bbH: 7.75, fenceDist: true };   // default = the batter's-eye view   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -695,7 +719,8 @@
   const mowSel = (reg,lbl) => `<label class="mowrow"><span>mow ${lbl}</span><select data-mow="${reg}">` +
     MOW.map(([n,v]) => `<option value="${v}"${v==cam[reg]?' selected':''}>${n}</option>`).join('') + '</select></label>';
   const mowBar = '<div class="mowsel">' + mowSel('mowOut','outfield') + mowSel('mowIn','infield') + '</div>';
-  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + parkBar + presetBar + mowBar + rows.map(([k,min,max,st,u,l]) =>
+  const chkBar = `<label class="chkrow"><input type="checkbox" id="fdist"${cam.fenceDist?' checked':''}> fence distance markers</label>`;
+  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + parkBar + presetBar + mowBar + chkBar + rows.map(([k,min,max,st,u,l]) =>
     `<label><span>${l}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${st}" value="${cam[k]}"><b id="v-${k}">${cam[k]}${u}</b><button class="rst" data-k="${k}" title="reset ${l}">↺</button></label>`
   ).join('') + '<div class="row"><button id="reset">reset all</button></div><pre id="out"></pre>';
   document.body.appendChild(panel);
@@ -706,8 +731,9 @@
   panel.querySelectorAll('input[type=range]').forEach(inp => inp.addEventListener('input', () => {
     cam[inp.dataset.k] = parseFloat(inp.value); syncLabel(inp.dataset.k); draw();
   }));
-  const syncMow = () => panel.querySelectorAll('select[data-mow]').forEach(s => s.value = cam[s.dataset.mow]);
+  const syncMow = () => { panel.querySelectorAll('select[data-mow]').forEach(s => s.value = cam[s.dataset.mow]); const fd=panel.querySelector('#fdist'); if(fd) fd.checked = !!cam.fenceDist; };
   panel.querySelectorAll('select[data-mow]').forEach(s => s.addEventListener('change', () => { cam[s.dataset.mow] = parseFloat(s.value); draw(); }));
+  panel.querySelector('#fdist').addEventListener('change', e => { cam.fenceDist = e.target.checked; draw(); });
   panel.querySelectorAll('.rst').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k; cam[k] = DEF[k]; syncSlider(k); draw(); }));
   panel.querySelectorAll('.pset[data-n]').forEach(b => b.addEventListener('click', () => applyAll({ ...PRESETS[b.dataset.n] })));
   const markPark = () => panel.querySelectorAll('.park').forEach(b => b.style.background = b.dataset.park===cam.park ? '#26c565' : '');
@@ -754,8 +780,19 @@
     // edit to one wall, rebuild the other as its x-negated reflection (keeps counts + heights
     // in sync, so add/delete/height mirror too). The edited wall is the source of truth.
     const OTHER = w => w === 'sideR' ? 'sideL' : 'sideR';
-    const isSide = w => w === 'sideR' || w === 'sideL';   // only the two side walls mirror
-    const mirror = w => { if (EDIT.mirror && isSide(w)) EDIT[OTHER(w)] = EDIT[w].map(p => (p.h!=null ? { x:-p.x, y:p.y, h:p.h } : { x:-p.x, y:p.y })); };
+    const isSide = w => w === 'sideR' || w === 'sideL';         // side walls mirror as a PAIR
+    const isArc  = w => w === 'outfield' || w === 'backstop';   // single symmetric walls -> WITHIN-wall mirror
+    const reflectPt = p => (p.h!=null ? { x:-p.x, y:p.y, h:p.h } : { x:-p.x, y:p.y });
+    // MIRROR (when on): sides rebuild the partner from the edited wall; outfield/backstop reflect
+    // the just-edited vertex i onto its partner n-1-i (center vertex pinned to the y-axis).
+    const mirror = (w, i) => { if (!EDIT.mirror) return;
+      if (isSide(w)) { EDIT[OTHER(w)] = EDIT[w].map(reflectPt); return; }
+      if (isArc(w) && i != null){ const a=EDIT[w], n=a.length, j=n-1-i;
+        if (j===i) a[i] = { ...a[i], x:0 }; else a[j] = reflectPt(a[i]); }
+    };
+    // re-impose full symmetry (first half -> second) -- used when mirror is switched ON
+    const symmetrizeWall = w => { const a=EDIT[w], n=a.length, half=Math.floor(n/2);
+      for (let i=0;i<half;i++) a[n-1-i] = reflectPt(a[i]); if (n%2) a[half] = { ...a[half], x:0 }; };
     const svgLoc = e => { const m = svg.getScreenCTM(); if (!m) return null;
       const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(m.inverse()); };
     // move vertex i of wall wk to (wx,wy), applying end-snap then 180-collinear snap, keeping .h
@@ -773,21 +810,30 @@
         if (r > 0.01 && r < EDIT._backstopMin){ const s = EDIT._backstopMin/r; np = { x:np.x*s, y:np.y*s }; } }
       const nx=+np.x.toFixed(1), ny=+np.y.toFixed(1);
       pts[i] = (o.h!=null ? { x:nx, y:ny, h:o.h } : { x:nx, y:ny });
-      mirror(wk);
+      mirror(wk, i);
     };
     svg.addEventListener('mousedown', e => {
       if (!EDIT.mode || e.button !== 0) return;
-      const del = e.target.closest('.we-del');   // × on the selected vertex -> delete it
-      if (del) { e.preventDefault(); e.stopPropagation(); const wk=del.dataset.w, pts=EDIT[wk];
-        if (pts.length > 2){ pts.splice(+del.dataset.i, 1); EDIT.selV=null; syncVsel(); mirror(wk); draw(); } return; }
+      const del = e.target.closest('.we-del');   // × on the selected vertex -> delete it (+ its mirror on arc walls)
+      if (del) { e.preventDefault(); e.stopPropagation(); const wk=del.dataset.w, pts=EDIT[wk], i=+del.dataset.i;
+        if (EDIT.mirror && isArc(wk)){ const n=pts.length, j=n-1-i;
+          if (j===i){ if (n>2) pts.splice(i,1); }
+          else if (n>3){ pts.splice(Math.max(i,j),1); pts.splice(Math.min(i,j),1); } }   // arc: remove both, higher first
+        else { if (pts.length>2) pts.splice(i,1); mirror(wk); }                            // side/non-mirror: splice + pair-mirror
+        EDIT.selV=null; syncVsel(); draw(); return; }
       const vh = e.target.closest('.we-vh');      // press on a dot -> maybe drag, maybe click-select
       if (vh) { e.preventDefault(); e.stopPropagation(); vdown = { w:vh.dataset.w, i:+vh.dataset.i, sx:e.clientX, sy:e.clientY, dragging:false }; return; }
-      const add = e.target.closest('.we-add');    // ＋ midpoint -> insert a vertex (interp height)
+      const add = e.target.closest('.we-add');    // ＋ midpoint -> insert a vertex (+ its mirror on arc walls)
       if (add) { e.preventDefault(); e.stopPropagation();
-        const wk = add.dataset.w, seg = +add.dataset.seg, pts = EDIT[wk], a = pts[seg], b = pts[seg+1];
-        const mid = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
-        if (a.h!=null || b.h!=null) { const fb=(EDIT._hfb&&EDIT._hfb[wk]!=null)?EDIT._hfb[wk]:(cam.sideH??6); mid.h = ((a.h ?? fb)+(b.h ?? fb))/2; }
-        pts.splice(seg+1, 0, mid); mirror(wk); draw();
+        const wk = add.dataset.w, seg = +add.dataset.seg, pts = EDIT[wk];
+        const fb=(EDIT._hfb&&EDIT._hfb[wk]!=null)?EDIT._hfb[wk]:(cam.sideH??6);
+        const mkMid = (a,b) => { const m={x:(a.x+b.x)/2,y:(a.y+b.y)/2}; if (a.h!=null||b.h!=null) m.h=((a.h??fb)+(b.h??fb))/2; return m; };
+        if (EDIT.mirror && isArc(wk)){ const n=pts.length, mseg=n-2-seg, mid=mkMid(pts[seg],pts[seg+1]);
+          if (mseg===seg){ mid.x=0; pts.splice(seg+1,0,mid); }                         // middle segment -> single, on axis
+          else { const rmid=reflectPt(mid), p1=seg+1, p2=mseg+1;                        // insert both, higher position first
+            if (p1>p2){ pts.splice(p1,0,mid); pts.splice(p2,0,rmid); } else { pts.splice(p2,0,rmid); pts.splice(p1,0,mid); } }
+        } else { pts.splice(seg+1, 0, mkMid(pts[seg],pts[seg+1])); mirror(wk); }
+        draw();
       }
     });
     addEventListener('mousemove', e => {
@@ -805,7 +851,9 @@
     // mirror toggle (default ON): flipping it on immediately reflects sideR -> sideL
     EDIT.mirror = true;
     const mchk = hint.querySelector('#wemirror');
-    mchk.addEventListener('change', () => { EDIT.mirror = mchk.checked; if (EDIT.mirror) mirror('sideR'); draw(); });
+    mchk.addEventListener('change', () => { EDIT.mirror = mchk.checked;
+      if (EDIT.mirror){ mirror('sideR'); symmetrizeWall('outfield'); symmetrizeWall('backstop'); }   // snap all walls symmetric
+      draw(); });
     // VERTEX HEIGHT slider: appears when a vertex is selected; sets EDIT[w][i].h.
     const segEl = hint.querySelector('#weseg'), segRow = hint.querySelector('#wesegrow'), segVal = hint.querySelector('#wesegval');
     const hFallback = wk => (EDIT._hfb && EDIT._hfb[wk] != null) ? EDIT._hfb[wk] : (cam.sideH ?? 6);
@@ -814,7 +862,7 @@
         segEl.value = EDIT[s.w][s.i].h ?? hFallback(s.w); segVal.textContent = (+segEl.value)+'ft'; }
       else { segRow.hidden = true; EDIT.selV = null; } };
     segEl.addEventListener('input', () => { const s = EDIT.selV; if (!s) return;
-      EDIT[s.w][s.i].h = parseFloat(segEl.value); mirror(s.w); segVal.textContent = (+segEl.value)+'ft'; draw(); });
+      EDIT[s.w][s.i].h = parseFloat(segEl.value); mirror(s.w, s.i); segVal.textContent = (+segEl.value)+'ft'; draw(); });
     editSyncSeg = syncVsel;   // expose so the ✎ toggle can hide the row on exit
   })();
 
