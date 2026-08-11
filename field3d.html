@@ -19,6 +19,11 @@
   /* 🎥 toggle + overlay camera panel (same pattern as the game) */
   #camtoggle { position: fixed; top: 14px; right: 14px; z-index: 70; width: 42px; height: 42px; border-radius: 50%;
     border: 1px solid #2a3a55; background: rgba(20,35,63,.92); color: #fff; font-size: 19px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  #wetoggle { position: fixed; top: 14px; right: 64px; z-index: 70; width: 42px; height: 42px; border-radius: 50%;
+    border: 1px solid #2a3a55; background: rgba(20,35,63,.92); color: #fff; font-size: 19px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  #wetoggle.on { background: #b8342f; border-color: #ff7a72; }
+  #wehint { position: fixed; top: 62px; right: 64px; z-index: 70; width: 172px; padding: 8px 10px; font-size: 10.5px; line-height: 1.5;
+    background: rgba(11,18,32,.97); border: 1px solid #b8342f; border-radius: 10px; color: #e7eef7; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #campanel { position: fixed; top: 62px; right: 14px; z-index: 70; width: 250px; max-width: calc(100vw - 28px);
     background: rgba(11,18,32,.97); border: 1px solid #2a3a55; border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 38px rgba(0,0,0,.6); }
   #campanel .ttl { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7fd0a3; font-size: 11px; margin-bottom: 8px; }
@@ -213,6 +218,7 @@
 
   function renderField(cam) {
     const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
+    EDIT._P = P;   // expose the current projector (+ its .inv) to the wall editor's mouse handlers
     const pj = pt => { const s = P(pt); return s.x.toFixed(1)+','+s.y.toFixed(1); };
     const path = pts => 'M ' + pts.map(pj).join(' L ');
     // worldLine: draw a polyline as a REAL-width ribbon (wFt feet) in WORLD space,
@@ -492,6 +498,24 @@
       return s; };
     const mowOut = mowBands(cam.mowOut ?? 1), mowIn = mowBands(cam.mowIn ?? 0.5);
 
+    // WALL EDITOR overlay: draggable vertex handles + per-segment length labels + a "+"
+    // insert button at each segment midpoint. Screen-constant sizes (drawn at projected
+    // ground points), painted last so they sit on top. Only when EDIT.mode is on.
+    let weLayer = '';
+    if (EDIT.mode) {
+      for (const wk of ['sideR','sideL']) { const pts = EDIT[wk];
+        for (let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1];
+          const Lft = Math.hypot(b.x-a.x, b.y-a.y), mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+          const sm = P({...mid, z:0});
+          weLayer += `<text x="${sm.x.toFixed(1)}" y="${(sm.y-1.4).toFixed(1)}" text-anchor="middle" font-size="2.6" fill="#ffe08a" stroke="#000" stroke-width=".5" paint-order="stroke" font-family="Bahnschrift,sans-serif" pointer-events="none">${Lft.toFixed(0)}'</text>`;
+          weLayer += `<g class="we-add" data-w="${wk}" data-seg="${i}" style="cursor:copy"><circle cx="${sm.x.toFixed(1)}" cy="${(sm.y+2.2).toFixed(1)}" r="1.9" fill="#1c9b5e" stroke="#fff" stroke-width=".4"/><text x="${sm.x.toFixed(1)}" y="${(sm.y+3.1).toFixed(1)}" text-anchor="middle" font-size="2.8" fill="#fff" font-family="Bahnschrift,sans-serif" pointer-events="none">+</text></g>`;
+        }
+        for (let i=0;i<pts.length;i++){ const sp = P({...pts[i], z:0});
+          weLayer += `<circle class="we-vh" data-w="${wk}" data-i="${i}" cx="${sp.x.toFixed(1)}" cy="${sp.y.toFixed(1)}" r="2.3" fill="#fff" stroke="#e2352d" stroke-width=".8" style="cursor:grab"/>`;
+        }
+      }
+    }
+
     return `
       <defs>
         <radialGradient id="grassg" cx="50%" cy="78%" r="95%"><stop offset="0%" stop-color="${STYLE.colors.grass[0]}"/><stop offset="55%" stop-color="${STYLE.colors.grass[1]}"/><stop offset="100%" stop-color="${STYLE.colors.grass[2]}"/></radialGradient>
@@ -557,6 +581,8 @@
       ${backstop}
       <!-- scale-reference human billboard (on top) -->
       ${billboard}
+      <!-- wall-editor overlay (handles / dimensions / add buttons) -->
+      ${weLayer}
     `;
   }
 
@@ -585,7 +611,7 @@
     ['pitch', 0, 89, 1, '°', 'tilt back'],
     ['yaw', -180, 180, 1, '°', 'rotate'],
     ['k', 0, 0.04, 0.0005, '', 'perspective'],
-    ['zoom', 0.2, 40, 0.05, '×', 'zoom'],
+    ['zoom', 0.05, 40, 0.05, '×', 'zoom'],
     ['wallH', 0, 60, 0.5, 'ft', 'wall height'],
     ['poleH', 0, 120, 1, 'ft', 'pole height'],
     ['panX', -400, 400, 2, '', 'pan ←→'],
@@ -643,6 +669,44 @@
   const toggle = document.createElement('button'); toggle.id = 'camtoggle'; toggle.textContent = '🎥'; toggle.title = 'Field camera controls';
   toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
   document.body.appendChild(toggle);
+
+  // ---- WALL EDITOR: toggle + a small how-to hint ----
+  const wetoggle = document.createElement('button'); wetoggle.id = 'wetoggle'; wetoggle.textContent = '✎';
+  wetoggle.title = 'Edit foul-territory walls';
+  const hint = document.createElement('div'); hint.id = 'wehint'; hint.hidden = true;
+  hint.innerHTML = '<b>Wall editor</b><br>• drag a red dot to move a vertex<br>• <b>＋</b> on a segment to add one<br>• double-click a dot to delete<br>• labels show each run in feet';
+  wetoggle.addEventListener('click', () => { EDIT.mode = !EDIT.mode; wetoggle.classList.toggle('on', EDIT.mode); hint.hidden = !EDIT.mode; draw(); });
+  document.body.appendChild(wetoggle); document.body.appendChild(hint);
+
+  // ---- WALL EDITOR: mouse handling (left button; camera uses right button, so no clash) ----
+  (function wallEditor() {
+    let vdrag = null;
+    const svgLoc = e => { const m = svg.getScreenCTM(); if (!m) return null;
+      const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(m.inverse()); };
+    svg.addEventListener('mousedown', e => {
+      if (!EDIT.mode || e.button !== 0) return;
+      const vh = e.target.closest('.we-vh');
+      if (vh) { e.preventDefault(); e.stopPropagation(); vdrag = { w: vh.dataset.w, i: +vh.dataset.i }; return; }
+      const add = e.target.closest('.we-add');
+      if (add) { e.preventDefault(); e.stopPropagation();
+        const wk = add.dataset.w, seg = +add.dataset.seg, pts = EDIT[wk], a = pts[seg], b = pts[seg+1];
+        pts.splice(seg+1, 0, { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }); draw();
+      }
+    });
+    addEventListener('mousemove', e => {
+      if (!vdrag || !EDIT._P) return;
+      const loc = svgLoc(e); if (!loc) return;
+      const wpt = EDIT._P.inv(loc.x, loc.y);
+      if (isFinite(wpt.x) && isFinite(wpt.y)) { EDIT[vdrag.w][vdrag.i] = { x: +wpt.x.toFixed(1), y: +wpt.y.toFixed(1) }; draw(); }
+    });
+    addEventListener('mouseup', () => { vdrag = null; });
+    svg.addEventListener('dblclick', e => {
+      if (!EDIT.mode) return;
+      const vh = e.target.closest('.we-vh'); if (!vh) return;
+      e.preventDefault(); const pts = EDIT[vh.dataset.w];
+      if (pts.length > 2) { pts.splice(+vh.dataset.i, 1); draw(); }
+    });
+  })();
 
   // ---- keyboard + mouse camera controls ----
   //  WASD ............... W/S dolly forward/back, A/D strafe left/right
