@@ -26,6 +26,9 @@
     background: rgba(11,18,32,.97); border: 1px solid #b8342f; border-radius: 10px; color: #e7eef7; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #wemirrorrow { display: flex; align-items: center; gap: 6px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #2a3a55; cursor: pointer; font-weight: 700; }
   #wemirrorrow input { cursor: pointer; }
+  #wetopdown { display: block; width: 100%; margin-top: 7px; padding: 5px 8px; font-size: 10.5px; font-weight: 700;
+    background: rgba(20,35,63,.92); color: #cfe3d6; border: 1px solid #2a3a55; border-radius: 7px; cursor: pointer; }
+  #wetopdown:hover { background: #26c565; color: #06120b; }
   #campanel { position: fixed; top: 62px; right: 14px; z-index: 70; width: 250px; max-width: calc(100vw - 28px);
     background: rgba(11,18,32,.97); border: 1px solid #2a3a55; border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 38px rgba(0,0,0,.6); }
   #campanel .ttl { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7fd0a3; font-size: 11px; margin-bottom: 8px; }
@@ -677,9 +680,21 @@
   wetoggle.title = 'Edit foul-territory walls';
   const hint = document.createElement('div'); hint.id = 'wehint'; hint.hidden = true;
   hint.innerHTML = '<b>Wall editor</b><br>• drag a red dot to move a vertex<br>• <b>＋</b> on a segment to add one<br>• double-click a dot to delete<br>• labels show each run in feet'
-    + '<label id="wemirrorrow"><input type="checkbox" id="wemirror" checked> mirror L ⇋ R</label>';
-  wetoggle.addEventListener('click', () => { EDIT.mode = !EDIT.mode; wetoggle.classList.toggle('on', EDIT.mode); hint.hidden = !EDIT.mode; draw(); });
+    + '<label id="wemirrorrow"><input type="checkbox" id="wemirror" checked> mirror L ⇋ R</label>'
+    + '<button id="wetopdown">⤓ reset to top-down</button>';
+  // TOP-DOWN framing for editing: a near-map view that fits the whole field with all vertices
+  // on-screen. Entering edit mode snaps here (camera stays fully movable after); the button
+  // re-snaps any time. Exiting restores the view you were on before editing.
+  const TOPDOWN = { pitch: 14, yaw: 0, k: 0.0012, zoom: 0.11, fwd: 175, strafe: 0, camZ: 70, panX: 0, panY: -70 };
+  const gotoTopDown = () => applyAll({ ...TOPDOWN });
+  let preEditCam = null;
+  wetoggle.addEventListener('click', () => {
+    EDIT.mode = !EDIT.mode; wetoggle.classList.toggle('on', EDIT.mode); hint.hidden = !EDIT.mode;
+    if (EDIT.mode) { preEditCam = { ...cam }; gotoTopDown(); }        // snap to map on enter
+    else { if (preEditCam) applyAll(preEditCam); preEditCam = null; } // restore on exit
+  });
   document.body.appendChild(wetoggle); document.body.appendChild(hint);
+  hint.querySelector('#wetopdown').addEventListener('click', gotoTopDown);
 
   // ---- WALL EDITOR: mouse handling (left button; camera uses right button, so no clash) ----
   (function wallEditor() {
