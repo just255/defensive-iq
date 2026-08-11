@@ -24,6 +24,8 @@
   #wetoggle.on { background: #b8342f; border-color: #ff7a72; }
   #wehint { position: fixed; top: 62px; right: 64px; z-index: 70; width: 172px; padding: 8px 10px; font-size: 10.5px; line-height: 1.5;
     background: rgba(11,18,32,.97); border: 1px solid #b8342f; border-radius: 10px; color: #e7eef7; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  #wemirrorrow { display: flex; align-items: center; gap: 6px; margin-top: 7px; padding-top: 7px; border-top: 1px solid #2a3a55; cursor: pointer; font-weight: 700; }
+  #wemirrorrow input { cursor: pointer; }
   #campanel { position: fixed; top: 62px; right: 14px; z-index: 70; width: 250px; max-width: calc(100vw - 28px);
     background: rgba(11,18,32,.97); border: 1px solid #2a3a55; border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 38px rgba(0,0,0,.6); }
   #campanel .ttl { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #7fd0a3; font-size: 11px; margin-bottom: 8px; }
@@ -611,7 +613,7 @@
     ['pitch', 0, 89, 1, '°', 'tilt back'],
     ['yaw', -180, 180, 1, '°', 'rotate'],
     ['k', 0, 0.04, 0.0005, '', 'perspective'],
-    ['zoom', 0.05, 40, 0.05, '×', 'zoom'],
+    ['zoom', 0.05, 40, 0.01, '×', 'zoom'],
     ['wallH', 0, 60, 0.5, 'ft', 'wall height'],
     ['poleH', 0, 120, 1, 'ft', 'pole height'],
     ['panX', -400, 400, 2, '', 'pan ←→'],
@@ -674,13 +676,19 @@
   const wetoggle = document.createElement('button'); wetoggle.id = 'wetoggle'; wetoggle.textContent = '✎';
   wetoggle.title = 'Edit foul-territory walls';
   const hint = document.createElement('div'); hint.id = 'wehint'; hint.hidden = true;
-  hint.innerHTML = '<b>Wall editor</b><br>• drag a red dot to move a vertex<br>• <b>＋</b> on a segment to add one<br>• double-click a dot to delete<br>• labels show each run in feet';
+  hint.innerHTML = '<b>Wall editor</b><br>• drag a red dot to move a vertex<br>• <b>＋</b> on a segment to add one<br>• double-click a dot to delete<br>• labels show each run in feet'
+    + '<label id="wemirrorrow"><input type="checkbox" id="wemirror" checked> mirror L ⇋ R</label>';
   wetoggle.addEventListener('click', () => { EDIT.mode = !EDIT.mode; wetoggle.classList.toggle('on', EDIT.mode); hint.hidden = !EDIT.mode; draw(); });
   document.body.appendChild(wetoggle); document.body.appendChild(hint);
 
   // ---- WALL EDITOR: mouse handling (left button; camera uses right button, so no clash) ----
   (function wallEditor() {
     let vdrag = null;
+    // MIRROR: with mirror on, the two side walls stay symmetric across the y-axis. After any
+    // edit to one wall, rebuild the other as its x-negated reflection (keeps counts in sync,
+    // so add/delete mirror too). The edited wall is always the source of truth.
+    const OTHER = w => w === 'sideR' ? 'sideL' : 'sideR';
+    const mirror = w => { if (EDIT.mirror) EDIT[OTHER(w)] = EDIT[w].map(p => ({ x: -p.x, y: p.y })); };
     const svgLoc = e => { const m = svg.getScreenCTM(); if (!m) return null;
       const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(m.inverse()); };
     svg.addEventListener('mousedown', e => {
@@ -690,22 +698,26 @@
       const add = e.target.closest('.we-add');
       if (add) { e.preventDefault(); e.stopPropagation();
         const wk = add.dataset.w, seg = +add.dataset.seg, pts = EDIT[wk], a = pts[seg], b = pts[seg+1];
-        pts.splice(seg+1, 0, { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }); draw();
+        pts.splice(seg+1, 0, { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }); mirror(wk); draw();
       }
     });
     addEventListener('mousemove', e => {
       if (!vdrag || !EDIT._P) return;
       const loc = svgLoc(e); if (!loc) return;
       const wpt = EDIT._P.inv(loc.x, loc.y);
-      if (isFinite(wpt.x) && isFinite(wpt.y)) { EDIT[vdrag.w][vdrag.i] = { x: +wpt.x.toFixed(1), y: +wpt.y.toFixed(1) }; draw(); }
+      if (isFinite(wpt.x) && isFinite(wpt.y)) { EDIT[vdrag.w][vdrag.i] = { x: +wpt.x.toFixed(1), y: +wpt.y.toFixed(1) }; mirror(vdrag.w); draw(); }
     });
     addEventListener('mouseup', () => { vdrag = null; });
     svg.addEventListener('dblclick', e => {
       if (!EDIT.mode) return;
       const vh = e.target.closest('.we-vh'); if (!vh) return;
-      e.preventDefault(); const pts = EDIT[vh.dataset.w];
-      if (pts.length > 2) { pts.splice(+vh.dataset.i, 1); draw(); }
+      e.preventDefault(); const wk = vh.dataset.w, pts = EDIT[wk];
+      if (pts.length > 2) { pts.splice(+vh.dataset.i, 1); mirror(wk); draw(); }
     });
+    // mirror toggle (default ON): flipping it on immediately reflects sideR -> sideL
+    EDIT.mirror = true;
+    const mchk = hint.querySelector('#wemirror');
+    mchk.addEventListener('change', () => { EDIT.mirror = mchk.checked; if (EDIT.mirror) mirror('sideR'); draw(); });
   })();
 
   // ---- keyboard + mouse camera controls ----
@@ -751,7 +763,9 @@
       else apply({ pitch: -dy * 0.25, yaw: dx * 0.3 });
     });
     addEventListener('mouseup', () => { drag = null; });
-    stage.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey) apply({ k: -e.deltaY * 0.00002 }); else apply({ zoom: -e.deltaY * 0.0015 }); }, { passive: false });
+    // zoom is MULTIPLICATIVE: step scales with current zoom so every wheel tick is the
+    // same % change (a fixed additive step is a huge jump at 0.05x but tiny at 40x).
+    stage.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey) apply({ k: -e.deltaY * 0.00002 }); else apply({ zoom: -e.deltaY * 0.0015 * cam.zoom }); }, { passive: false });
   })();
 
   let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { fitViewport(); draw(); }, 120); });
