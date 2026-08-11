@@ -295,6 +295,17 @@
     // catcher's box: real 43in wide (x +/-1.79), squared U OPEN toward the plate; front
     // at the batter's-box back (catFront), back 8ft from the apex (catBack=-8).
     const catBoxPts = [{x:1.79,y:catFront},{x:1.79,y:catBack},{x:-1.79,y:catBack},{x:-1.79,y:catFront}];   // open U
+    // coach's boxes: MLB 20ft long (along the foul line) x 10ft wide, near edge 15ft off
+    // the line, in foul territory beside each base. L = distance along the foul line
+    // (base = 1B/3B at L=c.base); P = perpendicular into foul.
+    const nRf={x:SQRT1_2,y:-SQRT1_2}, nLf={x:-SQRT1_2,y:-SQRT1_2};                 // into-foul normals
+    const coachBox = (dir, nf) => { const q=(L,P)=>({x:dir.x*L+nf.x*P, y:dir.y*L+nf.y*P});
+      return [q(c.base-10,15), q(c.base+10,15), q(c.base+10,25), q(c.base-10,25)]; };
+    const cbox1 = coachBox(dRf, nRf), cbox3 = coachBox(dLf, nLf);
+    // runner's lane (1B only): 3ft into foul, parallel to the 1B line, covering the 2nd
+    // half of the run (base/2 -> base), with the connector back to the foul line at base/2.
+    const rl=(L,P)=>({x:dRf.x*L+nRf.x*P, y:dRf.y*L+nRf.y*P});
+    const runLane = [rl(c.base/2,0), rl(c.base/2,3), rl(c.base,3)];
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
     // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
@@ -435,6 +446,10 @@
       ${worldLine(bboxPts(-1), CB, CK, 0.8, true)}
       ${worldLine(bboxPts(1),  CB, CK, 0.8, true)}
       ${worldLine(catBoxPts,   CB, CK)}
+      <!-- coach's boxes (1B/3B) + first-base runner's lane, foul-territory chalk -->
+      ${worldLine(cbox1, CB, CK, 0.8, true)}
+      ${worldLine(cbox3, CB, CK, 0.8, true)}
+      ${worldLine(runLane, CB, CK)}
       <path d="${plate}" fill="#f4f7fb"/>
       ${baseSq}
       ${fld}
