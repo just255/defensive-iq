@@ -59,6 +59,7 @@
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
     backstop:     { wallHt: 8, spanDeg: 60 },           // padded wall height (ft, short) + half-span of the arc behind home (+/-deg)
     grassDepthFt: 1.6,                                   // field-slab thickness (ft) extruded down at the outer edge
+    grassLipFt: 0.5,                                     // how far the grass sits ABOVE the dirt (turf lip), fallback
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
@@ -284,7 +285,16 @@
     // at each bag (cut = the home-circle radius, so bag cut-outs match the home circle).
     const grassOffFt = c.base/30;                       // 3ft at base 90 (scales with park)
     const grassCutFt = c.homeCircR;                     // base cut-outs = home-circle radius (13ft MLB / 10ft LL, real)
-    const grassIn = path(infieldGrassWorld(bs, cen, grassOffFt, grassCutFt)) + ' Z';
+    // GRASS LIP: grass surfaces sit grassLift ft ABOVE the dirt, with a green step (lip
+    // face) at every grass-dirt boundary -- the real turf-over-skin edge (distinct from
+    // the field-slab soil edge). grassLift from the panel slider.
+    const grassLift = cam.grassLip ?? STYLE.grassLipFt;
+    const raise = pts => pts.map(p => ({x:p.x, y:p.y, z:grassLift}));
+    const grassLipFace = pts => { let s=''; for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length];
+      s += `<path d="${path([{x:a.x,y:a.y,z:0},{x:b.x,y:b.y,z:0},{x:b.x,y:b.y,z:grassLift},{x:a.x,y:a.y,z:grassLift}])} Z" fill="${STYLE.colors.grass[2]}" stroke="none"/>`; } return s; };
+    const grassInPts = infieldGrassWorld(bs, cen, grassOffFt, grassCutFt);
+    const grassIn = path(raise(grassInPts)) + ' Z';
+    const infLip = grassLipFace(grassInPts);
     // foul chalk starts where the (45deg) foul line crosses the batter's box TOP
     // edge (y = 3) — so it CONNECTS to the box corner instead of running through it
     // or floating out past it. All the home-plate chalk shares these box coords.
@@ -405,7 +415,9 @@
     const outerR = segHit(AR, dR, iWall[N-2], iWall[N-1]), outerL = segHit(AL, dL, iWall[1], iWall[0]); // meets warning-track edge
     const angOf = p => Math.atan2(p.y-cyw, p.x);
     const arcSeg = arcPts(0, cyw, Rarc, angOf(innerL), angOf(innerR), 24);            // grass line between the two corners
-    const outGrass = path([ innerR, outerR, ...iWall.slice(1, N-1).reverse(), outerL, innerL, ...arcSeg ]) + ' Z';
+    const outGrassPts = [ innerR, outerR, ...iWall.slice(1, N-1).reverse(), outerL, innerL, ...arcSeg ];
+    const outGrass = path(raise(outGrassPts)) + ' Z';
+    const outLip = grassLipFace(outGrassPts);
 
     // mow stripes: WORLD-space bands PROJECTED through the camera (converge +
     // foreshorten with the field), clipped to the outfield grass. HARD-edged
@@ -420,7 +432,7 @@
       // SYMMETRIC about the field's axis, not offset.
       let x0 = -bandFt/2; while (x0 > -mowX) x0 -= period;
       for (let x=x0; x<mowX; x += period) {
-        const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:mowY}, {x, y:mowY}];
+        const quad = [{x, y:-4, z:grassLift}, {x:x+bandFt, y:-4, z:grassLift}, {x:x+bandFt, y:mowY, z:grassLift}, {x, y:mowY, z:grassLift}];
         s += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}"/>`;
       }
       return s; };
@@ -449,14 +461,15 @@
       <!-- the straddle fan adds the 3ft dirt strip on the FOUL side of each foul line
            (home -> the 95ft arc), so the foul line sits centred in dirt -->
       <path d="${dirtFan}" fill="url(#dirtg)"/>
-      <!-- GRASS grows on top of the dirt (outfield); what it leaves uncovered IS the
-           warning track + infield skin — one connected dirt, one colour -->
+      <!-- GRASS grows on top of the dirt (outfield), raised slightly (grass lip) -->
+      ${outLip}
       <path d="${outGrass}" fill="url(#grassg)"/>
       <g clip-path="url(#outgrass)">${mowOut}</g>
       <!-- standing wall + lit top edge -->
       ${faces}
       ${caps}
-      <!-- infield grass patch grows on the infield dirt (own mow width via mowIn) -->
+      <!-- infield grass patch, raised slightly above the dirt (grass lip) -->
+      ${infLip}
       <path d="${grassIn}" fill="url(#infg)"/>
       <g clip-path="url(#infgrass)">${mowIn}</g>
       <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
@@ -490,7 +503,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3, grassLip: 1 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -522,6 +535,7 @@
     ['camZ', -150, 150, 1, 'ft', 'cam Z (height)'],
     ['bsH', 4, 30, 0.5, 'ft', 'backstop ht'],
     ['grassD', 0, 12, 0.5, 'ft', 'grass depth'],
+    ['grassLip', 0, 4, 0.25, 'ft', 'grass lift'],
   ];
   const draw = () => {
     STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
