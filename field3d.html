@@ -172,7 +172,7 @@
     const y = (cam.yaw||0)*Math.PI/180, cY = Math.cos(y), sY = Math.sin(y);
     const S = BASE.S0 * cam.zoom, cx = VB.w/2 + cam.panX, homeY = BASE.homeY0 + cam.panY;
     const fwd = cam.fwd || 0, camZ = cam.camZ || 0, strafe = cam.strafe || 0;
-    return (pt) => {
+    const P = (pt) => {
       // fwd/strafe/camZ move the CAMERA -- and orient to the CAMERA'S yaw frame, so W is
       // always "into the screen" and A/D are the camera's left/right no matter how it's
       // rotated. Camera forward (world) = (sinYaw,cosYaw), right = (cosYaw,-sinYaw); the
@@ -182,10 +182,34 @@
       const r = rawAt({ x: rx, y: ry, z: (pt.z||0) - camZ }, cP, sP, k);
       return { x: cx + r.X*S, y: homeY - r.Y*S };
     };
+    // Inverse: screen pixel -> world point on the GROUND plane (z=0). Closed-form because
+    // the pitch projection's convergence is linear in ry. Used by the wall vertex editor
+    // so a dragged handle lands exactly where it's dropped on the field, at any camera angle.
+    P.inv = (sx, sy) => {
+      const Xv = (sx - cx) / S, Yv = (homeY - sy) / S;
+      const ry = (Yv * (sP*k*Y_NEAR - 1) - camZ*sP) / (Yv*sP*k - cP);   // solve conv/pitch for ry
+      const D = 1 + (ry - Y_NEAR) * sP * k;                              // 1/conv at that ry
+      const rx = Xv * D;
+      const px = rx*cY + ry*sY, py = -rx*sY + ry*cY;                     // un-yaw
+      return { x: px + fwd*sY + strafe*cY, y: py + fwd*cY - strafe*sY }; // un-translate
+    };
+    return P;
   }
 
   const arcPts = (cxw,cyw,r,a0,a1,n) => Array.from({length:n+1},(_,i)=>{const a=a0+(a1-a0)*i/n;return{x:cxw+r*Math.cos(a),y:cyw+r*Math.sin(a)};});
   const circPts = (cxw,cyw,r,n) => Array.from({length:n},(_,i)=>{const a=2*Math.PI*i/n;return{x:cxw+r*Math.cos(a),y:cyw+r*Math.sin(a)};});
+
+  // ---- Editable stadium walls (world coords, feet) ---------------------------------
+  // The foul-territory SIDE WALLS run from each backstop end out to the outfield foul
+  // pole, through foul ground. Vertices are user-editable (drag / add / remove via the
+  // wall editor). Defaults are MLB-scaled with a couple of angles so the wall has some
+  // character instead of a dead-straight run. sideR[0]/sideL[0] sit at the backstop ends;
+  // the last vertex of each sits on its foul pole.
+  const EDIT = {
+    sideR: [ {x:52,y:-30}, {x:150,y:6}, {x:225,y:135}, {x:233,y:233} ],
+    sideL: [ {x:-52,y:-30}, {x:-150,y:6}, {x:-225,y:135}, {x:-233,y:233} ],
+    mode: false,   // wall-editor toggle (Stage 2)
+  };
 
   function renderField(cam) {
     const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
@@ -216,15 +240,14 @@
     const lerp = (b,f) => ({ x: cen.x+(b.x-cen.x)*f, y: cen.y+(b.y-cen.y)*f });
 
     const grass = path([B.H, ...w.wall]) + ' Z';
-    // FOUL-TERRITORY grass apron: the ground extended behind home and beyond both foul
-    // lines (bounded by the outfield fence), so the straddle dirt shows against grass
-    // instead of the black background (and it grasses the backstop area behind home).
-    const foulMarginFt = 55, backMarginFt = c.backstopR + 15;   // extend the grass behind the backstop
-    const dLw = vnorm(w.wall[0]), dRw = vnorm(w.wall[w.wall.length-1]);
-    const nLo = {x:-dLw.y, y:dLw.x}, nRo = {x:dRw.y, y:-dRw.x};       // into-foul normals
-    const apronPts = [ {x:0,y:-backMarginFt},
-      vadd(w.wall[0], vmul(nLo, foulMarginFt)), ...w.wall,
-      vadd(w.wall[w.wall.length-1], vmul(nRo, foulMarginFt)) ];
+    // BACKSTOP arc points (computed early so the foul-grass apron can close against them).
+    // A backstopR-radius arc behind home, wrapping +/-spanDeg around the straight-back axis.
+    const bsR = c.backstopR, bsH = cam.bsH ?? STYLE.backstop.wallHt, bsSpan = STYLE.backstop.spanDeg;
+    const bsPts = []; for (let dg=-bsSpan; dg<=bsSpan; dg+=8){ const a=dg*Math.PI/180; bsPts.push({x:bsR*Math.sin(a), y:-bsR*Math.cos(a)}); }
+    // FOUL-TERRITORY grass apron = the whole enclosed ground: traced along the backstop arc
+    // (behind home) -> right side wall -> outfield fence -> left side wall. The side walls are
+    // the editable EDIT.sideR/sideL polylines, so the grass always fills right up to them.
+    const apronPts = [ ...bsPts, ...EDIT.sideR, ...[...w.wall].reverse(), ...[...EDIT.sideL].reverse() ];
     const apron = path(apronPts) + ' Z';
     // GRASS DEPTH: extrude the field's outer edge DOWN by grassDepthFt so the ground
     // reads as a raised slab with thickness (grass top at z=0, dark soil side below).
@@ -356,14 +379,23 @@
       const cap=[{...a,z:H-capFt},{...b,z:H-capFt},{...b,z:H},{...a,z:H}];
       caps += `<path d="${path(cap)} Z" fill="${STYLE.colors.wallCap}" stroke="none"/>`;
     }
-    // BACKSTOP: a short padded wall on a backstopR-radius arc behind home, wrapping
-    // +/-spanDeg around the straight-back (-y) axis. Just the wall for now (netting TBD).
-    const bsR = c.backstopR, bsH = cam.bsH ?? STYLE.backstop.wallHt, bsSpan = STYLE.backstop.spanDeg;
-    const bsPts = []; for (let dg=-bsSpan; dg<=bsSpan; dg+=8){ const a=dg*Math.PI/180; bsPts.push({x:bsR*Math.sin(a), y:-bsR*Math.cos(a)}); }
+    // BACKSTOP wall: extrude the (hoisted) bsPts arc up to bsH. Just the wall for now (netting TBD).
     let backstop = '';
     for (let i=0;i<bsPts.length-1;i++){ const a=bsPts[i], b=bsPts[i+1];
       backstop += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:bsH},{...a,z:bsH}])} Z" fill="url(#wallface)" stroke="none"/>`;
     }
+    // FOUL-TERRITORY SIDE WALLS: extrude each editable polyline (EDIT.sideR/sideL) up to
+    // sideH. Same face texture as the outfield fence, but NO yellow cap -- the yellow lip
+    // is reserved for the outfield wall; the side walls just get a thin dark top edge.
+    const sideH = cam.sideH ?? STYLE.wall.sideHeightFt ?? 6, sCapFt = STYLE.wall.capFt;
+    let sideWalls = '';
+    const extrudeWall = (pts) => { let s='';
+      for (let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1];
+        s += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:sideH},{...a,z:sideH}])} Z" fill="url(#wallface)" stroke="none"/>`;
+        s += `<path d="${path([{...a,z:sideH-sCapFt},{...b,z:sideH-sCapFt},{...b,z:sideH},{...a,z:sideH}])} Z" fill="${STYLE.colors.slab}" stroke="none"/>`;
+      }
+      return s; };
+    sideWalls = extrudeWall(EDIT.sideR) + extrudeWall(EDIT.sideL);
     // SCALE-REFERENCE billboard: an upright person image, feet on the ground at (bbX,bbY),
     // sized so bbH ft maps to its on-screen height (player.png is 637x1680; the batter is
     // ~78% of that, so bbH ~7.7 -> a ~6ft player). Screen-upright so it reads at any angle.
@@ -519,6 +551,8 @@
       ${baseSq}
       ${fld}
       ${pole(w.wall[0], nL)}${pole(w.wall[w.wall.length-1], nR)}
+      <!-- foul-territory side walls (backstop -> foul poles) -->
+      ${sideWalls}
       <!-- backstop (foreground, behind home) -->
       ${backstop}
       <!-- scale-reference human billboard (on top) -->
@@ -529,7 +563,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3, grassLip: 0.25, bbX: 4, bbY: 3, bbH: 7.7 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 77, yaw: 0, k: 0.04, zoom: 18, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 32, strafe: 0, camZ: -6, mowOut: 1, mowIn: 0.5, bsH: 4, sideH: 6, grassD: 3, grassLip: 0.25, bbX: -3, bbY: -2, bbH: 7.75 };   // default = the batter's-eye view   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -560,6 +594,7 @@
     ['strafe', -300, 300, 2, 'ft', 'strafe ←→'],
     ['camZ', -150, 150, 1, 'ft', 'cam Z (height)'],
     ['bsH', 4, 30, 0.5, 'ft', 'backstop ht'],
+    ['sideH', 0, 30, 0.5, 'ft', 'side-wall ht'],
     ['grassD', 0, 12, 0.5, 'ft', 'grass depth'],
     ['grassLip', 0, 4, 0.25, 'ft', 'grass lift'],
     ['bbH', 0, 14, 0.25, 'ft', 'scale-ref ht (0=off)'],
