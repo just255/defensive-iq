@@ -364,6 +364,16 @@
     for (let i=0;i<bsPts.length-1;i++){ const a=bsPts[i], b=bsPts[i+1];
       backstop += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:bsH},{...a,z:bsH}])} Z" fill="url(#wallface)" stroke="none"/>`;
     }
+    // SCALE-REFERENCE billboard: an upright person image, feet on the ground at (bbX,bbY),
+    // sized so bbH ft maps to its on-screen height (player.png is 637x1680; the batter is
+    // ~78% of that, so bbH ~7.7 -> a ~6ft player). Screen-upright so it reads at any angle.
+    const bbH = cam.bbH ?? 0;
+    let billboard = '';
+    if (bbH > 0.01) {
+      const feet = P({x:cam.bbX, y:cam.bbY, z:0}), head = P({x:cam.bbX, y:cam.bbY, z:bbH});
+      const hpx = Math.hypot(head.x-feet.x, head.y-feet.y), wpx = hpx*(637/1680);
+      billboard = `<image href="player.png" x="${(feet.x-wpx/2).toFixed(1)}" y="${(feet.y-hpx).toFixed(1)}" width="${wpx.toFixed(1)}" height="${hpx.toFixed(1)}" preserveAspectRatio="xMidYMid meet"/>`;
+    }
     // A real foul pole: a thin vertical pole from the ground up, plus a flat
     // rectangular SCREEN panel jutting into FAIR above the fence (not an orb on
     // top). n = the foul-line inward normal (into fair) for this corner.
@@ -511,13 +521,15 @@
       ${pole(w.wall[0], nL)}${pole(w.wall[w.wall.length-1], nR)}
       <!-- backstop (foreground, behind home) -->
       ${backstop}
+      <!-- scale-reference human billboard (on top) -->
+      ${billboard}
     `;
   }
 
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3, grassLip: 0.25 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3, grassLip: 0.25, bbX: 4, bbY: 3, bbH: 7.7 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -539,7 +551,7 @@
     ['pitch', 0, 89, 1, '°', 'tilt back'],
     ['yaw', -180, 180, 1, '°', 'rotate'],
     ['k', 0, 0.04, 0.0005, '', 'perspective'],
-    ['zoom', 0.2, 12, 0.05, '×', 'zoom'],
+    ['zoom', 0.2, 40, 0.05, '×', 'zoom'],
     ['wallH', 0, 60, 0.5, 'ft', 'wall height'],
     ['poleH', 0, 120, 1, 'ft', 'pole height'],
     ['panX', -400, 400, 2, '', 'pan ←→'],
@@ -550,6 +562,9 @@
     ['bsH', 4, 30, 0.5, 'ft', 'backstop ht'],
     ['grassD', 0, 12, 0.5, 'ft', 'grass depth'],
     ['grassLip', 0, 4, 0.25, 'ft', 'grass lift'],
+    ['bbH', 0, 14, 0.25, 'ft', 'scale-ref ht (0=off)'],
+    ['bbX', -220, 220, 1, 'ft', 'scale-ref X'],
+    ['bbY', -30, 420, 1, 'ft', 'scale-ref Y'],
   ];
   const draw = () => {
     STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
