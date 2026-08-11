@@ -335,7 +335,7 @@
     }
     // BACKSTOP: a short padded wall on a backstopR-radius arc behind home, wrapping
     // +/-spanDeg around the straight-back (-y) axis. Just the wall for now (netting TBD).
-    const bsR = c.backstopR, bsH = STYLE.backstop.wallHt, bsSpan = STYLE.backstop.spanDeg;
+    const bsR = c.backstopR, bsH = cam.bsH ?? STYLE.backstop.wallHt, bsSpan = STYLE.backstop.spanDeg;
     const bsPts = []; for (let dg=-bsSpan; dg<=bsSpan; dg+=8){ const a=dg*Math.PI/180; bsPts.push({x:bsR*Math.sin(a), y:-bsR*Math.cos(a)}); }
     let backstop = '';
     for (let i=0;i<bsPts.length-1;i++){ const a=bsPts[i], b=bsPts[i+1];
@@ -479,7 +479,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -509,6 +509,7 @@
     ['fwd', -150, 350, 2, 'ft', 'dolly fwd/bk'],
     ['strafe', -300, 300, 2, 'ft', 'strafe ←→'],
     ['camZ', -150, 150, 1, 'ft', 'cam Z (height)'],
+    ['bsH', 4, 30, 0.5, 'ft', 'backstop ht'],
   ];
   const draw = () => {
     STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
