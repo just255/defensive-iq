@@ -47,13 +47,13 @@
   // base): 18-ft diameter (9-ft radius) at every level; Little League height is
   // 6 inches (0.5 ft) vs 10 inches at HS/college/MLB.
   const CFG = {
-    LL:  { name: 'Little League', base: 60, pitch: 46,   fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5,   wallHt: 6, poleHt: 15 },
-    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833, wallHt: 8, poleHt: 45 },
+    LL:  { name: 'Little League', base: 60, pitch: 46,   fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5,   homeCircR: 10, wallHt: 6, poleHt: 15 },
+    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833, homeCircR: 13, wallHt: 8, poleHt: 45 },
   };
   const STYLE = {
     arc:          { radiusFromMound: 1.0556 },   // infield-skin arc radius = 95ft at base 90 (from the mound)
     infieldGrass: { scale: 0.92, cutout: 0.11 },
-    dirt:         { foulStrip: 0, warningTrack: 0.14, homeCircle: 0.144 },   // foulStrip 0 = grass to the foul line in the OUTFIELD (infield skin straddles the line instead). homeCircle 0.144*90 = 13ft radius (26ft dia). mound size in CFG.
+    dirt:         { foulStrip: 0, warningTrack: 0.14 },   // foulStrip 0 = grass to the foul line in the OUTFIELD (infield skin straddles the line). home-circle radius is REAL feet per park (CFG.homeCircR: 13ft MLB / 10ft LL), like the mound.
     markers:      { baseHD: 1.4, plateScale: 1.5, chalkFoulFt: 0.5, chalkBoxFt: 0.3 },   // baseHD = base half-diagonal (ft). Real base 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for visibility. plateScale exaggerates the 17in plate. chalk widths in REAL feet (foul 4in / box 2in, lightly exaggerated) drawn as world ribbons so they scale + foreshorten.
     wall:         { panels: 6, ease: 1.7, heightFt: 12, capFt: 0.4 },   // capFt = yellow top strip height (real ft), drawn as a world band so it foreshortens/zooms with the wall
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
@@ -242,7 +242,13 @@
     const dirtFan = path([rNear, rArc, ...arc, lArc, lNear]) + ' Z';
     const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
     const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
-    const homeCircle = path(circPts(0,0,c.base*STYLE.dirt.homeCircle,24)) + ' Z';
+    // home-area box geometry (real feet). boxYc = plate square centre (apex y=0 ->
+    // front y=1.42); batter's box centres on it; catcher's box is 8ft deep behind.
+    const boxYc = 0.71, catBoxLen = 8, catFront = boxYc-3, catBack = catFront - catBoxLen;
+    // home dirt circle: REAL 26ft(MLB)/20ft(LL) diameter, 13ft/10ft radius measured
+    // from the APEX of home plate (authoritative -- NCSU/field-layout spec), same datum
+    // as everything else. (An earlier "centre on the box midline" idea was wrong.)
+    const homeCircle = path(circPts(0, 0, c.homeCircR, 24)) + ' Z';
     // the mound is a LOW ROUNDED dome. Build it from stacked rings on a dome profile
     // (radius shrinks + height rises along a quarter-sine), each level drawn as a
     // side band + a disc, so the silhouette curves and rounds off at the top instead
@@ -265,7 +271,7 @@
     // infield grass = real 3ft-inside-the-baseline diamond with 13ft concave cut-outs
     // at each bag (cut = the home-circle radius, so bag cut-outs match the home circle).
     const grassOffFt = c.base/30;                       // 3ft at base 90 (scales with park)
-    const grassCutFt = c.base*STYLE.dirt.homeCircle;    // 13ft at base 90
+    const grassCutFt = c.homeCircR;                     // base cut-outs = home-circle radius (13ft MLB / 10ft LL, real)
     const grassIn = path(infieldGrassWorld(bs, cen, grassOffFt, grassCutFt)) + ' Z';
     // foul chalk starts where the (45deg) foul line crosses the batter's box TOP
     // edge (y = 3) — so it CONNECTS to the box corner instead of running through it
@@ -273,9 +279,7 @@
     // All chalk below is defined as WORLD point arrays and rendered via worldLine
     // (real-width ribbons) so it scales/foreshortens with the field, never screen-locked.
     // boxes are positioned relative to the PLATE, whose apex is the datum. boxYc =
-    // the plate's longitudinal centre (apex y=0 -> front edge y=1.42, mid = 0.71);
-    // the 4x6 batter's box is centred on it. Real dims, not exaggerated with the plate.
-    const boxYc = 0.71;
+    // (boxYc / catFront / catBack are defined up with the home dirt circle.)
     // FOUL LINES are ANCHORED at the apex (collinear with apex->pole at 45deg, so the
     // plate's 12in edges still define their direction) but the DRAWN line becomes visible
     // AT the batter's-box FRONT edge (y = boxYc+3) and runs out to the pole -- nothing is
@@ -287,9 +291,9 @@
     // batter's box: 4ft x 6ft, inner edge 6in off the plate (half-width 0.71 -> inner
     // x 1.21, outer 5.21), centred lengthwise on the plate mid.
     const bboxPts = sx => [{x:sx*1.21,y:boxYc-3},{x:sx*5.21,y:boxYc-3},{x:sx*5.21,y:boxYc+3},{x:sx*1.21,y:boxYc+3}];  // closed
-    // catcher's box: squared U (OPEN toward the plate), 43in wide (x +/-1.79); open
-    // end at the batter's-box back (boxYc-3), running back toward the backstop (y -8).
-    const catBoxPts = [{x:1.79,y:boxYc-3},{x:1.79,y:-8},{x:-1.79,y:-8},{x:-1.79,y:boxYc-3}];       // open U
+    // catcher's box: real 43in wide (x +/-1.79) x 8ft long, squared U OPEN toward the
+    // plate; front at the batter's-box back (catFront), running 8ft back (catBack).
+    const catBoxPts = [{x:1.79,y:catFront},{x:1.79,y:catBack},{x:-1.79,y:catBack},{x:-1.79,y:catFront}];   // open U
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
     // edge dark), so it keeps the lighter look while staying userSpaceOnUse-
