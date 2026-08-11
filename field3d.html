@@ -170,10 +170,11 @@
     const S = BASE.S0 * cam.zoom, cx = VB.w/2 + cam.panX, homeY = BASE.homeY0 + cam.panY;
     const fwd = cam.fwd || 0, camZ = cam.camZ || 0, strafe = cam.strafe || 0;
     return (pt) => {
-      // fwd/strafe/camZ move the CAMERA in world space (depth y / sideways x / height z)
-      // -- applied BEFORE yaw + the pitch projection, so they reproject with real
-      // perspective/parallax (the camera actually moves, not a flat screen slide).
-      const px = pt.x - strafe, py = pt.y - fwd;
+      // fwd/strafe/camZ move the CAMERA -- and orient to the CAMERA'S yaw frame, so W is
+      // always "into the screen" and A/D are the camera's left/right no matter how it's
+      // rotated. Camera forward (world) = (sinYaw,cosYaw), right = (cosYaw,-sinYaw); the
+      // world shifts opposite. camZ is world height. All applied before pitch projection.
+      const px = pt.x - fwd*sY - strafe*cY, py = pt.y - fwd*cY + strafe*sY;
       const rx = px*cY - py*sY, ry = px*sY + py*cY;
       const r = rawAt({ x: rx, y: ry, z: (pt.z||0) - camZ }, cP, sP, k);
       return { x: cx + r.X*S, y: homeY - r.Y*S };
@@ -538,12 +539,28 @@
   (function controls() {
     const lim = k => { const r = rows.find(x => x[0] === k); return r ? [r[1], r[2]] : [-1e9, 1e9]; };
     const apply = obj => { for (const k in obj) { const [lo,hi] = lim(k); cam[k] = Math.max(lo, Math.min(hi, cam[k] + obj[k])); } for (const k in obj) syncSlider(k); draw(); };
+    // WASD via a HELD-KEYS set + animation loop, so multiple keys register at once
+    // (W+A = smooth diagonal). Discrete keydown only repeats the LAST key the OS is
+    // repeating, so simultaneous keys were impossible before.
+    const held = new Set();
     addEventListener('keydown', e => {
       const t = e.target && e.target.tagName; if (t === 'INPUT' || t === 'TEXTAREA') return;
       const k = e.key.toLowerCase();
-      if (k === 'w') apply({ fwd: 6 }); else if (k === 's') apply({ fwd: -6 });
-      else if (k === 'a') apply({ strafe: -6 }); else if (k === 'd') apply({ strafe: 6 });   // world strafe (camera moves), not a flat pan
+      if ('wasd'.includes(k)) { held.add(k); e.preventDefault(); }
     });
+    addEventListener('keyup', e => held.delete(e.key.toLowerCase()));
+    addEventListener('blur', () => held.clear());
+    (function move(){
+      if (held.size) {
+        const step = 3, d = {};                 // world ft per frame (~60fps)
+        if (held.has('w')) d.fwd = (d.fwd||0) + step;
+        if (held.has('s')) d.fwd = (d.fwd||0) - step;
+        if (held.has('d')) d.strafe = (d.strafe||0) + step;
+        if (held.has('a')) d.strafe = (d.strafe||0) - step;
+        if (Object.keys(d).length) apply(d);
+      }
+      requestAnimationFrame(move);
+    })();
     let drag = null;
     stage.addEventListener('contextmenu', e => e.preventDefault());
     stage.addEventListener('mousedown', e => { if (e.button === 2) { e.preventDefault(); drag = { x: e.clientX, y: e.clientY, ctrl: e.ctrlKey }; } });
