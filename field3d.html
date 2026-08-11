@@ -47,8 +47,8 @@
   // base): 18-ft diameter (9-ft radius) at every level; Little League height is
   // 6 inches (0.5 ft) vs 10 inches at HS/college/MLB.
   const CFG = {
-    LL:  { name: 'Little League', base: 60, pitch: 46,   fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5,   homeCircR: 10, wallHt: 6, poleHt: 15 },
-    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833, homeCircR: 13, wallHt: 8, poleHt: 45 },
+    LL:  { name: 'Little League', base: 60, pitch: 46,   fLF: 200, fCF: 200, fRF: 200, moundR: 9, moundH: 0.5,   homeCircR: 10, backstopR: 40, wallHt: 6, poleHt: 15 },
+    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833, homeCircR: 13, backstopR: 60, wallHt: 8, poleHt: 45 },
   };
   const STYLE = {
     arc:          { radiusFromMound: 1.0556 },   // infield-skin arc radius = 95ft at base 90 (from the mound)
@@ -57,6 +57,7 @@
     markers:      { baseHD: 1.4, plateScale: 1.5, chalkFoulFt: 0.5, chalkBoxFt: 0.3 },   // baseHD = base half-diagonal (ft). Real base 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for visibility. plateScale exaggerates the 17in plate. chalk widths in REAL feet (foul 4in / box 2in, lightly exaggerated) drawn as world ribbons so they scale + foreshorten.
     wall:         { panels: 6, ease: 1.7, heightFt: 12, capFt: 0.4 },   // capFt = yellow top strip height (real ft), drawn as a world band so it foreshortens/zooms with the wall
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
+    backstop:     { wallHt: 8, spanDeg: 60 },           // padded wall height (ft, short) + half-span of the arc behind home (+/-deg)
     mow:          { widthFt: 0.28, opacity: 0.055 },   // band width as a fraction of base (world feet)
     colors: {
       grass:['#2c6a46','#1c4a34','#123020'], infield:['#347a4f','#265d3e'], dirt:['#c8814f','#7d4526'],
@@ -216,10 +217,10 @@
     // FOUL-TERRITORY grass apron: the ground extended behind home and beyond both foul
     // lines (bounded by the outfield fence), so the straddle dirt shows against grass
     // instead of the black background (and it grasses the backstop area behind home).
-    const foulMarginFt = 55;
+    const foulMarginFt = 55, backMarginFt = c.backstopR + 15;   // extend the grass behind the backstop
     const dLw = vnorm(w.wall[0]), dRw = vnorm(w.wall[w.wall.length-1]);
     const nLo = {x:-dLw.y, y:dLw.x}, nRo = {x:dRw.y, y:-dRw.x};       // into-foul normals
-    const apron = path([ {x:0,y:-foulMarginFt},
+    const apron = path([ {x:0,y:-backMarginFt},
       vadd(w.wall[0], vmul(nLo, foulMarginFt)), ...w.wall,
       vadd(w.wall[w.wall.length-1], vmul(nRo, foulMarginFt)) ]) + ' Z';
     // infield-skin outer edge = a 95ft-radius arc centred on the MOUND (real spec),
@@ -331,6 +332,14 @@
       faces += `<path d="${path(quad)} Z" fill="url(#wallface)" stroke="none"/>`;
       const cap=[{...a,z:H-capFt},{...b,z:H-capFt},{...b,z:H},{...a,z:H}];
       caps += `<path d="${path(cap)} Z" fill="${STYLE.colors.wallCap}" stroke="none"/>`;
+    }
+    // BACKSTOP: a short padded wall on a backstopR-radius arc behind home, wrapping
+    // +/-spanDeg around the straight-back (-y) axis. Just the wall for now (netting TBD).
+    const bsR = c.backstopR, bsH = STYLE.backstop.wallHt, bsSpan = STYLE.backstop.spanDeg;
+    const bsPts = []; for (let dg=-bsSpan; dg<=bsSpan; dg+=8){ const a=dg*Math.PI/180; bsPts.push({x:bsR*Math.sin(a), y:-bsR*Math.cos(a)}); }
+    let backstop = '';
+    for (let i=0;i<bsPts.length-1;i++){ const a=bsPts[i], b=bsPts[i+1];
+      backstop += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:bsH},{...a,z:bsH}])} Z" fill="url(#wallface)" stroke="none"/>`;
     }
     // A real foul pole: a thin vertical pole from the ground up, plus a flat
     // rectangular SCREEN panel jutting into FAIR above the fence (not an orb on
@@ -462,6 +471,8 @@
       ${baseSq}
       ${fld}
       ${pole(w.wall[0], nL)}${pole(w.wall[w.wall.length-1], nR)}
+      <!-- backstop (foreground, behind home) -->
+      ${backstop}
     `;
   }
 
