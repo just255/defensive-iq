@@ -54,7 +54,7 @@
     arc:          { radiusFromMound: 1.0556 },   // infield-skin arc radius = 95ft at base 90 (from the mound)
     infieldGrass: { scale: 0.92, cutout: 0.11 },
     dirt:         { foulStrip: 0, warningTrack: 0.14 },   // foulStrip 0 = grass to the foul line in the OUTFIELD (infield skin straddles the line). home-circle radius is REAL feet per park (CFG.homeCircR: 13ft MLB / 10ft LL), like the mound.
-    markers:      { baseHD: 1.4, plateScale: 1.5, chalkFoulFt: 0.5, chalkBoxFt: 0.3 },   // baseHD = base half-diagonal (ft). Real base 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for visibility. plateScale exaggerates the 17in plate. chalk widths in REAL feet (foul 4in / box 2in, lightly exaggerated) drawn as world ribbons so they scale + foreshorten.
+    markers:      { baseHD: 1.4, plateScale: 1.5, chalkFoulFt: 0.5, chalkBoxFt: 0.3, baseHt: 0.4 },   // baseHD = base half-diagonal (ft). Real base 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for visibility. plateScale exaggerates the 17in plate. chalk widths in REAL feet (foul 4in / box 2in, lightly exaggerated) drawn as world ribbons so they scale + foreshorten.
     wall:         { panels: 6, ease: 1.7, heightFt: 12, capFt: 0.4 },   // capFt = yellow top strip height (real ft), drawn as a world band so it foreshortens/zooms with the wall
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
     backstop:     { wallHt: 8, spanDeg: 60 },           // padded wall height (ft, short) + half-span of the arc behind home (+/-deg)
@@ -280,6 +280,8 @@
       moundBody += `<path d="M ${al.x.toFixed(1)},${al.y.toFixed(1)} L ${blp.x.toFixed(1)},${blp.y.toFixed(1)} L ${brp.x.toFixed(1)},${brp.y.toFixed(1)} L ${ar.x.toFixed(1)},${ar.y.toFixed(1)} Z" fill="url(#dirtg)"/>`;
       moundBody += `<path d="${ps(B)}" fill="url(#dirtg)"/>`;
     }
+    // pitching rubber: white slab (24in x 6in) on the mound top at the pitch distance.
+    const rubber = `<path d="${path([{x:-1,y:c.pitch-0.25,z:mH},{x:1,y:c.pitch-0.25,z:mH},{x:1,y:c.pitch+0.25,z:mH},{x:-1,y:c.pitch+0.25,z:mH}])} Z" fill="#eef1f6" stroke="none"/>`;
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
     // infield grass = real 3ft-inside-the-baseline diamond with 13ft concave cut-outs
     // at each bag (cut = the home-circle radius, so bag cut-outs match the home circle).
@@ -295,6 +297,8 @@
     const grassInPts = infieldGrassWorld(bs, cen, grassOffFt, grassCutFt);
     const grassIn = path(raise(grassInPts)) + ' Z';
     const infLip = grassLipFace(grassInPts);
+    // the mound is a dirt circle in the grass, so the grass is raised around it too
+    const moundLip = grassLipFace(circPts(0, c.pitch, mR, 22));
     // foul chalk starts where the (45deg) foul line crosses the batter's box TOP
     // edge (y = 3) — so it CONNECTS to the box corner instead of running through it
     // or floating out past it. All the home-plate chalk shares these box coords.
@@ -384,8 +388,16 @@
     // measured corner in B is untouched. 2B is centered on its corner. Offsets are
     // along each foul line's inward (fair) normal: 1B -> (-bh,+bh), 3B -> (+bh,+bh).
     const bagCtr = { '1B':{x:B['1B'].x-bh, y:B['1B'].y+bh}, '2B':B['2B'], '3B':{x:B['3B'].x+bh, y:B['3B'].y+bh} };
+    // bags are RAISED bagHt off the ground with a shaded side (real bases are ~4in tall
+    // slabs). Home plate is NOT raised -- it's set flush with the ground.
+    const bagHt = STYLE.markers.baseHt;
     const baseSq = ['1B','2B','3B'].map(k => { const ctr = bagCtr[k];
-      return `<path d="${path([{x:ctr.x,y:ctr.y+bd},{x:ctr.x+bd,y:ctr.y},{x:ctr.x,y:ctr.y-bd},{x:ctr.x-bd,y:ctr.y}])} Z" fill="#f4f7fb"/>`; }).join('');
+      const cor = [{x:ctr.x,y:ctr.y+bd},{x:ctr.x+bd,y:ctr.y},{x:ctr.x,y:ctr.y-bd},{x:ctr.x-bd,y:ctr.y}];
+      let s='';
+      for(let i=0;i<cor.length;i++){ const a=cor[i], b=cor[(i+1)%cor.length];
+        s += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:bagHt},{...a,z:bagHt}])} Z" fill="#c3c9d3" stroke="none"/>`; }
+      s += `<path d="${path(cor.map(c=>({...c,z:bagHt})))} Z" fill="#f4f7fb"/>`;
+      return s; }).join('');
 
     // ---- DIRT IS ONE SHAPE. Instead of stroking separate bands (which don't
     //      foreshorten and use their own colour), we fill the whole fair region
@@ -472,8 +484,10 @@
       ${infLip}
       <path d="${grassIn}" fill="url(#infg)"/>
       <g clip-path="url(#infgrass)">${mowIn}</g>
-      <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
+      <!-- the mound: grass lip around its dirt circle, the dome, then the rubber on top -->
+      ${moundLip}
       ${moundBody}
+      ${rubber}
       <!-- chalk as REAL-width world ribbons (foul ~4in : box ~2in), via worldLine so
            they foreshorten + scale with the field instead of ballooning when zoomed out -->
       ${worldLine(foulLPts, CF, CK)}
@@ -503,7 +517,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3, grassLip: 1 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3, grassLip: 0.25 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -587,7 +601,10 @@
   //  wheel .............. zoom     ·     ctrl + wheel .. perspective
   (function controls() {
     const lim = k => { const r = rows.find(x => x[0] === k); return r ? [r[1], r[2]] : [-1e9, 1e9]; };
-    const apply = obj => { for (const k in obj) { const [lo,hi] = lim(k); cam[k] = Math.max(lo, Math.min(hi, cam[k] + obj[k])); } for (const k in obj) syncSlider(k); draw(); };
+    const apply = obj => { for (const k in obj) { const nv = cam[k] + obj[k];
+      if (k === 'yaw') cam[k] = ((nv + 180) % 360 + 360) % 360 - 180;   // wrap -> continuous rotation, no dead stop at 180
+      else { const [lo,hi] = lim(k); cam[k] = Math.max(lo, Math.min(hi, nv)); }
+    } for (const k in obj) syncSlider(k); draw(); };
     // WASD via a HELD-KEYS set + animation loop, so multiple keys register at once
     // (W+A = smooth diagonal). Discrete keydown only repeats the LAST key the OS is
     // repeating, so simultaneous keys were impossible before.
