@@ -395,8 +395,11 @@
     // + same config on the outfield AND the infield grass, so the stripes are one
     // continuous mow pattern across the whole field).
     let mow=''; const bandFt = c.base * STYLE.mow.widthFt;
-    for (let x=-170; x<170; x += 2*bandFt) {
-      const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:250}, {x, y:250}];
+    // band coverage sized to the PARK: widest = the foul poles (fLF/fRF at 45deg),
+    // deepest = center field. (Bands are clipped to the grass, so slightly generous.)
+    const mowX = Math.max(c.fLF, c.fRF)*SQRT1_2 + 50, mowY = c.fCF + 50;
+    for (let x=-mowX; x<mowX; x += 2*bandFt) {
+      const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:mowY}, {x, y:mowY}];
       mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}"/>`;
     }
 
