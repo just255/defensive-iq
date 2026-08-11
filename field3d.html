@@ -227,7 +227,7 @@
     const apron = path(apronPts) + ' Z';
     // GRASS DEPTH: extrude the field's outer edge DOWN by grassDepthFt so the ground
     // reads as a raised slab with thickness (grass top at z=0, dark soil side below).
-    const slabD = STYLE.grassDepthFt;
+    const slabD = cam.grassD ?? STYLE.grassDepthFt;
     let grassLip = '';
     for (let i=0;i<apronPts.length;i++){ const a=apronPts[i], b=apronPts[(i+1)%apronPts.length];
       grassLip += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:-slabD},{...a,z:-slabD}])} Z" fill="${STYLE.colors.slab}" stroke="none"/>`;
@@ -490,7 +490,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5, bsH: 4, grassD: 3 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -521,6 +521,7 @@
     ['strafe', -300, 300, 2, 'ft', 'strafe ←→'],
     ['camZ', -150, 150, 1, 'ft', 'cam Z (height)'],
     ['bsH', 4, 30, 0.5, 'ft', 'backstop ht'],
+    ['grassD', 0, 12, 0.5, 'ft', 'grass depth'],
   ];
   const draw = () => {
     STYLE.wall.heightFt = cam.wallH; STYLE.foulPole.heightFt = cam.poleH;
