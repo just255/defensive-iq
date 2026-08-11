@@ -212,6 +212,15 @@
     const lerp = (b,f) => ({ x: cen.x+(b.x-cen.x)*f, y: cen.y+(b.y-cen.y)*f });
 
     const grass = path([B.H, ...w.wall]) + ' Z';
+    // FOUL-TERRITORY grass apron: the ground extended behind home and beyond both foul
+    // lines (bounded by the outfield fence), so the straddle dirt shows against grass
+    // instead of the black background (and it grasses the backstop area behind home).
+    const foulMarginFt = 55;
+    const dLw = vnorm(w.wall[0]), dRw = vnorm(w.wall[w.wall.length-1]);
+    const nLo = {x:-dLw.y, y:dLw.x}, nRo = {x:dRw.y, y:-dRw.x};       // into-foul normals
+    const apron = path([ {x:0,y:-foulMarginFt},
+      vadd(w.wall[0], vmul(nLo, foulMarginFt)), ...w.wall,
+      vadd(w.wall[w.wall.length-1], vmul(nRo, foulMarginFt)) ]) + ' Z';
     // infield-skin outer edge = a 95ft-radius arc centred on the MOUND (real spec),
     // not the old free-floating arc. cyw = mound y, Rarc = 95ft (scaled by park).
     const cyw = c.pitch, Rarc = c.base * STYLE.arc.radiusFromMound;
@@ -389,10 +398,15 @@
            sharing ONE userSpaceOnUse gradient — so overlapping subpaths can't
            cancel into a see-through hole, and every dirt region samples the same
            gradient (no region-to-region colour seam). -->
+      <!-- foul-territory + backstop grass apron UNDER everything -->
+      <path d="${apron}" fill="${STYLE.colors.grass[1]}"/>
       <path d="${grass}" fill="url(#dirtg)"/>
       <path d="${homeCircle}" fill="url(#dirtg)"/>
+      <!-- the straddle fan adds the 3ft dirt strip on the FOUL side of each foul line
+           (home -> the 95ft arc), so the foul line sits centred in dirt -->
+      <path d="${dirtFan}" fill="url(#dirtg)"/>
       <!-- GRASS grows on top of the dirt (outfield); what it leaves uncovered IS the
-           warning track + foul strips + infield skin — one connected dirt, one colour -->
+           warning track + infield skin — one connected dirt, one colour -->
       <path d="${outGrass}" fill="url(#grassg)"/>
       <g clip-path="url(#outgrass)">${mow}</g>
       <!-- standing wall + lit top edge -->
