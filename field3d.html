@@ -261,6 +261,11 @@
     // A backstopR-radius arc behind home, wrapping +/-spanDeg around the straight-back axis.
     const bsR = c.backstopR, bsH = cam.bsH ?? STYLE.backstop.wallHt, bsSpan = STYLE.backstop.spanDeg;
     const bsPts = []; for (let dg=-bsSpan; dg<=bsSpan; dg+=8){ const a=dg*Math.PI/180; bsPts.push({x:bsR*Math.sin(a), y:-bsR*Math.cos(a)}); }
+    // SNAP TARGETS for the wall editor = the ENDS of every wall (backstop ends, outfield
+    // foul poles, and each side wall's two endpoints). Exposed so a dragged vertex can snap
+    // flush to a connection point. Endpoint refs are live so they track other edits.
+    EDIT._snap = [ bsPts[0], bsPts[bsPts.length-1], w.wall[0], w.wall[w.wall.length-1],
+      EDIT.sideR[0], EDIT.sideR[EDIT.sideR.length-1], EDIT.sideL[0], EDIT.sideL[EDIT.sideL.length-1] ];
     // FOUL-TERRITORY grass apron = the whole enclosed ground: traced along the backstop arc
     // (behind home) -> right side wall -> outfield fence -> left side wall. The side walls are
     // the editable EDIT.sideR/sideL polylines, so the grass always fills right up to them.
@@ -536,6 +541,22 @@
         for (let i=0;i<pts.length;i++){ const sp = P({...pts[i], z:0});
           weLayer += `<circle class="we-vh" data-w="${wk}" data-i="${i}" cx="${sp.x.toFixed(1)}" cy="${sp.y.toFixed(1)}" r="2.3" fill="#fff" stroke="#e2352d" stroke-width=".8" style="cursor:grab"/>`;
         }
+        // ANGLE labels at each interior vertex: the bend between its two segments. Placed just
+        // outside the corner (along the outward bisector). Turns green at ~180 deg (straight).
+        for (let i=1;i<pts.length-1;i++){ const v=pts[i], A=pts[i-1], C=pts[i+1];
+          const va={x:A.x-v.x,y:A.y-v.y}, vc={x:C.x-v.x,y:C.y-v.y};
+          const ang=Math.abs(Math.atan2(va.x*vc.y-va.y*vc.x, va.x*vc.x+va.y*vc.y))*180/Math.PI;
+          const la=Math.hypot(va.x,va.y)||1, lc=Math.hypot(vc.x,vc.y)||1;
+          let ox=-(va.x/la+vc.x/lc), oy=-(va.y/la+vc.y/lc); const ol=Math.hypot(ox,oy);
+          if (ol<0.15){ ox=-va.y/la; oy=va.x/la; } else { ox/=ol; oy/=ol; }   // outward bisector (~straight -> perpendicular)
+          // offset the label in SCREEN space by a fixed amount so it always clears the handle,
+          // whatever the zoom: project the vertex + a point along the outward bisector, then step
+          // a constant number of viewBox units along that screen direction.
+          const vs=P({x:v.x,y:v.y,z:0}), os=P({x:v.x+ox*10,y:v.y+oy*10,z:0});
+          let sdx=os.x-vs.x, sdy=os.y-vs.y; const sl=Math.hypot(sdx,sdy)||1;
+          const ap={x: vs.x+sdx/sl*4.6, y: vs.y+sdy/sl*4.6 + 0.8}, straight=ang>=179.4;
+          weLayer += `<text x="${ap.x.toFixed(1)}" y="${ap.y.toFixed(1)}" text-anchor="middle" font-size="2.3" fill="${straight?'#7dff9b':'#bfe0ff'}" stroke="#000" stroke-width=".5" paint-order="stroke" font-family="Bahnschrift,sans-serif" pointer-events="none">${ang.toFixed(0)}°</text>`;
+        }
       }
     }
 
@@ -697,7 +718,7 @@
   const wetoggle = document.createElement('button'); wetoggle.id = 'wetoggle'; wetoggle.textContent = '✎';
   wetoggle.title = 'Edit foul-territory walls';
   const hint = document.createElement('div'); hint.id = 'wehint'; hint.hidden = true;
-  hint.innerHTML = '<b>Wall editor</b><br>• drag a red dot to move a vertex<br>• <b>＋</b> on a segment to add one<br>• double-click a dot to delete<br>• click a <b>length label</b> to set that run\'s height'
+  hint.innerHTML = '<b>Wall editor</b><br>• drag a red dot to move a vertex<br>• <b>＋</b> on a segment to add one<br>• double-click a dot to delete<br>• click a <b>length label</b> to set that run\'s height<br>• snaps to wall ends + straight (180° turns <span style="color:#7dff9b">green</span>)'
     + '<div id="wesegrow" hidden><span>segment height</span><input type="range" id="weseg" min="0" max="30" step="0.5" value="6"><b id="wesegval">6ft</b></div>'
     + '<label id="wemirrorrow"><input type="checkbox" id="wemirror" checked> mirror L ⇋ R</label>'
     + '<button id="wetopdown">⤓ reset to top-down</button>';
@@ -744,9 +765,21 @@
       if (!vdrag || !EDIT._P) return;
       const loc = svgLoc(e); if (!loc) return;
       const wpt = EDIT._P.inv(loc.x, loc.y);
-      if (isFinite(wpt.x) && isFinite(wpt.y)) { const o = EDIT[vdrag.w][vdrag.i];
-        EDIT[vdrag.w][vdrag.i] = (o.h!=null ? { x:+wpt.x.toFixed(1), y:+wpt.y.toFixed(1), h:o.h } : { x:+wpt.x.toFixed(1), y:+wpt.y.toFixed(1) });   // keep segment height while moving
-        mirror(vdrag.w); draw(); }
+      if (!(isFinite(wpt.x) && isFinite(wpt.y))) return;
+      const pts = EDIT[vdrag.w], i = vdrag.i, o = pts[i];
+      let np = { x: wpt.x, y: wpt.y }, snapped = false;
+      // 1) SNAP to the ends of any wall (~7ft) so runs connect flush to a corner/pole
+      if (EDIT._snap) for (const t of EDIT._snap){ if (!t || t===o) continue;
+        if (Math.hypot(t.x-np.x, t.y-np.y) < 7){ np = { x:t.x, y:t.y }; snapped = true; break; } }
+      // 2) else, near-straight interior vertex -> SNAP collinear (exact 180 deg)
+      if (!snapped && i>0 && i<pts.length-1){ const A=pts[i-1], C=pts[i+1];
+        const va={x:A.x-np.x,y:A.y-np.y}, vc={x:C.x-np.x,y:C.y-np.y};
+        const ang=Math.abs(Math.atan2(va.x*vc.y-va.y*vc.x, va.x*vc.x+va.y*vc.y))*180/Math.PI;
+        if (ang>176){ const AC={x:C.x-A.x,y:C.y-A.y}, L2=(AC.x*AC.x+AC.y*AC.y)||1;
+          const u=((np.x-A.x)*AC.x+(np.y-A.y)*AC.y)/L2; np = { x:A.x+AC.x*u, y:A.y+AC.y*u }; } }
+      const nx=+np.x.toFixed(1), ny=+np.y.toFixed(1);
+      pts[i] = (o.h!=null ? { x:nx, y:ny, h:o.h } : { x:nx, y:ny });   // keep segment height while moving
+      mirror(vdrag.w); draw();
     });
     addEventListener('mouseup', () => { vdrag = null; });
     svg.addEventListener('dblclick', e => {
