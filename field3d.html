@@ -243,8 +243,9 @@
     const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
     const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
     // home-area box geometry (real feet). boxYc = plate square centre (apex y=0 ->
-    // front y=1.42); batter's box centres on it; catcher's box is 8ft deep behind.
-    const boxYc = 0.71, catBoxLen = 8, catFront = boxYc-3, catBack = catFront - catBoxLen;
+    // front y=1.42); batter's box centres on it. catcher's box back is 8ft FROM THE
+    // APEX (catBack=-8) -- that 8ft is a distance from home, NOT the box length.
+    const boxYc = 0.71, catFront = boxYc-3, catBack = -8;
     // home dirt circle: REAL 26ft(MLB)/20ft(LL) diameter, 13ft/10ft radius measured
     // from the APEX of home plate (authoritative -- NCSU/field-layout spec), same datum
     // as everything else. (An earlier "centre on the box midline" idea was wrong.)
@@ -291,8 +292,8 @@
     // batter's box: 4ft x 6ft, inner edge 6in off the plate (half-width 0.71 -> inner
     // x 1.21, outer 5.21), centred lengthwise on the plate mid.
     const bboxPts = sx => [{x:sx*1.21,y:boxYc-3},{x:sx*5.21,y:boxYc-3},{x:sx*5.21,y:boxYc+3},{x:sx*1.21,y:boxYc+3}];  // closed
-    // catcher's box: real 43in wide (x +/-1.79) x 8ft long, squared U OPEN toward the
-    // plate; front at the batter's-box back (catFront), running 8ft back (catBack).
+    // catcher's box: real 43in wide (x +/-1.79), squared U OPEN toward the plate; front
+    // at the batter's-box back (catFront), back 8ft from the apex (catBack=-8).
     const catBoxPts = [{x:1.79,y:catFront},{x:1.79,y:catBack},{x:-1.79,y:catBack},{x:-1.79,y:catFront}];   // open U
     const hm = P(B.H);
     // dirt gradient range = the dirt's OWN screen extent (far edge light -> near
