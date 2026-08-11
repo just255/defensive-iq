@@ -168,13 +168,13 @@
     const p = cam.pitch*Math.PI/180, cP = Math.cos(p), sP = Math.sin(p), k = cam.k;
     const y = (cam.yaw||0)*Math.PI/180, cY = Math.cos(y), sY = Math.sin(y);
     const S = BASE.S0 * cam.zoom, cx = VB.w/2 + cam.panX, homeY = BASE.homeY0 + cam.panY;
-    const fwd = cam.fwd || 0, camZ = cam.camZ || 0;
+    const fwd = cam.fwd || 0, camZ = cam.camZ || 0, strafe = cam.strafe || 0;
     return (pt) => {
-      // fwd: dolly the camera along the field depth (world y); camZ: move the camera
-      // up/down the z axis (world height). Both are world-space translations applied
-      // before yaw + the pitch projection, so they reproject with perspective.
-      const py = pt.y - fwd;
-      const rx = pt.x*cY - py*sY, ry = pt.x*sY + py*cY;
+      // fwd/strafe/camZ move the CAMERA in world space (depth y / sideways x / height z)
+      // -- applied BEFORE yaw + the pitch projection, so they reproject with real
+      // perspective/parallax (the camera actually moves, not a flat screen slide).
+      const px = pt.x - strafe, py = pt.y - fwd;
+      const rx = px*cY - py*sY, ry = px*sY + py*cY;
       const r = rawAt({ x: rx, y: ry, z: (pt.z||0) - camZ }, cP, sP, k);
       return { x: cx + r.X*S, y: homeY - r.Y*S };
     };
@@ -463,7 +463,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, camZ: 0 };   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0 };   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -491,6 +491,7 @@
     ['panX', -400, 400, 2, '', 'pan ←→'],
     ['panY', -400, 400, 2, '', 'pan ↑↓'],
     ['fwd', -150, 350, 2, 'ft', 'dolly fwd/bk'],
+    ['strafe', -300, 300, 2, 'ft', 'strafe ←→'],
     ['camZ', -150, 150, 1, 'ft', 'cam Z (height)'],
   ];
   const draw = () => {
@@ -541,7 +542,7 @@
       const t = e.target && e.target.tagName; if (t === 'INPUT' || t === 'TEXTAREA') return;
       const k = e.key.toLowerCase();
       if (k === 'w') apply({ fwd: 6 }); else if (k === 's') apply({ fwd: -6 });
-      else if (k === 'a') apply({ panX: -10 }); else if (k === 'd') apply({ panX: 10 });
+      else if (k === 'a') apply({ strafe: -6 }); else if (k === 'd') apply({ strafe: 6 });   // world strafe (camera moves), not a flat pan
     });
     let drag = null;
     stage.addEventListener('contextmenu', e => e.preventDefault());
@@ -562,5 +563,3 @@
 </script>
 </body>
 </html>
-
-<!-- deploy-nonce -->
