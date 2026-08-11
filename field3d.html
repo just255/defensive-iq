@@ -392,17 +392,21 @@
     // mow stripes: WORLD-space bands PROJECTED through the camera (converge +
     // foreshorten with the field), clipped to the outfield grass. HARD-edged
     // (real mow strips are hard).
-    // mow bands drawn WITHOUT a clip here, then clipped per-grass below (same bands
-    // + same config on the outfield AND the infield grass, so the stripes are one
-    // continuous mow pattern across the whole field).
-    let mow=''; const bandFt = c.base * STYLE.mow.widthFt;
-    // band coverage sized to the PARK: widest = the foul poles (fLF/fRF at 45deg),
-    // deepest = center field. (Bands are clipped to the grass, so slightly generous.)
+    // mow bands generated per REGION so the infield and outfield can have different
+    // stripe widths (real fields use smaller mowers in the infield). scale multiplies
+    // the base band width; 0 = no stripes. Coverage sized to the park (widest = the foul
+    // poles at 45deg, deepest = center field); clipped to each grass below.
     const mowX = Math.max(c.fLF, c.fRF)*SQRT1_2 + 50, mowY = c.fCF + 50;
-    for (let x=-mowX; x<mowX; x += 2*bandFt) {
-      const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:mowY}, {x, y:mowY}];
-      mow += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}"/>`;
-    }
+    const mowBands = scale => { if (!(scale > 0)) return ''; const bandFt = c.base*STYLE.mow.widthFt*scale, period = 2*bandFt; let s='';
+      // center a stripe on x=0 (the mound / CF / home center line) so the pattern is
+      // SYMMETRIC about the field's axis, not offset.
+      let x0 = -bandFt/2; while (x0 > -mowX) x0 -= period;
+      for (let x=x0; x<mowX; x += period) {
+        const quad = [{x, y:-4}, {x:x+bandFt, y:-4}, {x:x+bandFt, y:mowY}, {x, y:mowY}];
+        s += `<path d="${path(quad)} Z" fill="#eafff4" opacity="${STYLE.mow.opacity}"/>`;
+      }
+      return s; };
+    const mowOut = mowBands(cam.mowOut ?? 1), mowIn = mowBands(cam.mowIn ?? 0.5);
 
     return `
       <defs>
@@ -428,13 +432,13 @@
       <!-- GRASS grows on top of the dirt (outfield); what it leaves uncovered IS the
            warning track + infield skin — one connected dirt, one colour -->
       <path d="${outGrass}" fill="url(#grassg)"/>
-      <g clip-path="url(#outgrass)">${mow}</g>
+      <g clip-path="url(#outgrass)">${mowOut}</g>
       <!-- standing wall + lit top edge -->
       ${faces}
       ${caps}
-      <!-- infield grass patch grows on the infield dirt (with the SAME mow stripes) -->
+      <!-- infield grass patch grows on the infield dirt (own mow width via mowIn) -->
       <path d="${grassIn}" fill="url(#infg)"/>
-      <g clip-path="url(#infgrass)">${mow}</g>
+      <g clip-path="url(#infgrass)">${mowIn}</g>
       <!-- the mound: a low ROUNDED dome (stacked rings), one solid piece -->
       ${moundBody}
       <!-- chalk as REAL-width world ribbons (foul ~4in : box ~2in), via worldLine so
@@ -464,7 +468,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0 };   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 46, yaw: 0, k: 0.003, zoom: 1.1, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 0, strafe: 0, camZ: 0, mowOut: 1, mowIn: 0.5 };   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -505,7 +509,12 @@
   const panel = document.createElement('div'); panel.id = 'campanel'; panel.hidden = true;
   const presetBar = '<div class="presets">' + Object.keys(PRESETS).map(n => `<button class="pset" data-n="${n}">${n}</button>`).join('') + '</div>';
   const parkBar = '<div class="presets">' + Object.keys(CFG).map(k => `<button class="park pset" data-park="${k}">${k}</button>`).join('') + '</div>';
-  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + parkBar + presetBar + rows.map(([k,min,max,st,u,l]) =>
+  // mow-stripe selectors: independent stripe width for the outfield vs infield grass
+  const MOW = [['Wide',1.5],['Med',1],['Narrow',0.5],['Fine',0.25],['None',0]];
+  const mowSel = (reg,lbl) => `<label class="mowrow"><span>mow ${lbl}</span><select data-mow="${reg}">` +
+    MOW.map(([n,v]) => `<option value="${v}"${v==cam[reg]?' selected':''}>${n}</option>`).join('') + '</select></label>';
+  const mowBar = '<div class="mowsel">' + mowSel('mowOut','outfield') + mowSel('mowIn','infield') + '</div>';
+  panel.innerHTML = '<div class="ttl">🎥 Field camera</div>' + parkBar + presetBar + mowBar + rows.map(([k,min,max,st,u,l]) =>
     `<label><span>${l}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${st}" value="${cam[k]}"><b id="v-${k}">${cam[k]}${u}</b><button class="rst" data-k="${k}" title="reset ${l}">↺</button></label>`
   ).join('') + '<div class="row"><button id="reset">reset all</button></div><pre id="out"></pre>';
   document.body.appendChild(panel);
@@ -516,6 +525,8 @@
   panel.querySelectorAll('input[type=range]').forEach(inp => inp.addEventListener('input', () => {
     cam[inp.dataset.k] = parseFloat(inp.value); syncLabel(inp.dataset.k); draw();
   }));
+  const syncMow = () => panel.querySelectorAll('select[data-mow]').forEach(s => s.value = cam[s.dataset.mow]);
+  panel.querySelectorAll('select[data-mow]').forEach(s => s.addEventListener('change', () => { cam[s.dataset.mow] = parseFloat(s.value); draw(); }));
   panel.querySelectorAll('.rst').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k; cam[k] = DEF[k]; syncSlider(k); draw(); }));
   panel.querySelectorAll('.pset[data-n]').forEach(b => b.addEventListener('click', () => applyAll({ ...PRESETS[b.dataset.n] })));
   const markPark = () => panel.querySelectorAll('.park').forEach(b => b.style.background = b.dataset.park===cam.park ? '#26c565' : '');
@@ -526,7 +537,7 @@
     computeBase(); markPark(); draw();
   }));
   markPark();
-  panel.querySelector('#reset').addEventListener('click', () => { Object.assign(cam, DEF); computeBase(); rows.forEach(r => syncSlider(r[0])); markPark(); draw(); });
+  panel.querySelector('#reset').addEventListener('click', () => { Object.assign(cam, DEF); computeBase(); rows.forEach(r => syncSlider(r[0])); syncMow(); markPark(); draw(); });
   const toggle = document.createElement('button'); toggle.id = 'camtoggle'; toggle.textContent = '🎥'; toggle.title = 'Field camera controls';
   toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
   document.body.appendChild(toggle);
@@ -552,7 +563,7 @@
     addEventListener('blur', () => held.clear());
     (function move(){
       if (held.size) {
-        const step = 3, d = {};                 // world ft per frame (~60fps)
+        const step = 1.8, d = {};               // world ft per frame (~60fps)
         if (held.has('w')) d.fwd = (d.fwd||0) + step;
         if (held.has('s')) d.fwd = (d.fwd||0) - step;
         if (held.has('d')) d.strafe = (d.strafe||0) + step;
