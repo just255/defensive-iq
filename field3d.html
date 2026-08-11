@@ -224,7 +224,7 @@
     sideL: [ {x:-52,y:-30}, {x:-150,y:6}, {x:-225,y:135}, {x:-233,y:233} ],
     mode: false,   // wall-editor toggle (Stage 2)
     mirror: true,  // keep the two side walls symmetric on edit
-    sel: null,     // currently selected segment { w, seg } for per-segment height editing
+    selV: null,    // currently selected vertex { w, i } for height editing / delete
   };
 
   function renderField(cam) {
@@ -409,16 +409,16 @@
     // FOUL-TERRITORY SIDE WALLS: extrude each editable polyline (EDIT.sideR/sideL) up to
     // sideH. Same face texture as the outfield fence, but NO yellow cap -- the yellow lip
     // is reserved for the outfield wall; the side walls just get a thin dark top edge.
-    // Per-segment height: each segment's height is the START vertex's .h (falls back to the
-    // global cam.sideH when un-overridden), so the editor can raise/lower individual runs.
+    // Per-VERTEX height: each vertex owns a height (.h, falls back to global cam.sideH); a
+    // segment's top RAMPS linearly between its two endpoints' heights, so adjacent runs blend
+    // with no step. Uniform wall = all vertices equal (the global slider).
     const sideH = cam.sideH ?? STYLE.wall.sideHeightFt ?? 6, sCapFt = STYLE.wall.capFt;
     let sideWalls = '';
     const extrudeWall = (pts, wk) => { let s='';
       for (let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1];
-        const h = a.h ?? sideH;
-        const seld = EDIT.mode && EDIT.sel && EDIT.sel.w===wk && EDIT.sel.seg===i;   // highlight selection
-        s += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:h},{...a,z:h}])} Z" fill="${seld?'#2f8fe6':'url(#wallface)'}" stroke="none"/>`;
-        s += `<path d="${path([{...a,z:h-sCapFt},{...b,z:h-sCapFt},{...b,z:h},{...a,z:h}])} Z" fill="${seld?'#7fc0ff':STYLE.colors.slab}" stroke="none"/>`;
+        const ha = a.h ?? sideH, hb = b.h ?? sideH;
+        s += `<path d="${path([{...a,z:0},{...b,z:0},{...b,z:hb},{...a,z:ha}])} Z" fill="url(#wallface)" stroke="none"/>`;
+        s += `<path d="${path([{...a,z:ha-sCapFt},{...b,z:hb-sCapFt},{...b,z:hb},{...a,z:ha}])} Z" fill="${STYLE.colors.slab}" stroke="none"/>`;
       }
       return s; };
     sideWalls = extrudeWall(EDIT.sideR,'sideR') + extrudeWall(EDIT.sideL,'sideL');
@@ -527,19 +527,16 @@
         for (let i=0;i<pts.length-1;i++){ const a=pts[i], b=pts[i+1];
           const Lft = Math.hypot(b.x-a.x, b.y-a.y), mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
           const sm = P({...mid, z:0});
-          const segH = a.h ?? sideH, seld = EDIT.sel && EDIT.sel.w===wk && EDIT.sel.seg===i;
-          const lbl = seld ? `${Lft.toFixed(0)}' · ${(+segH).toFixed((segH%1)?1:0)}ft` : `${Lft.toFixed(0)}'`;
-          // clickable dimension label = the SEGMENT SELECTOR. Invisible padded rect gives a
-          // comfortable hit area; when selected it becomes a blue chip reading length + height.
-          const hw = seld ? 9.5 : 5.5;
-          weLayer += `<g class="we-dim" data-w="${wk}" data-seg="${i}" style="cursor:pointer">`
-            + `<rect x="${(sm.x-hw).toFixed(1)}" y="${(sm.y-3.3).toFixed(1)}" width="${(hw*2).toFixed(1)}" height="3.8" rx="0.8" fill="${seld?'#2f8fe6':'transparent'}" stroke="${seld?'#7fc0ff':'none'}" stroke-width="0.3"/>`
-            + `<text x="${sm.x.toFixed(1)}" y="${(sm.y-0.9).toFixed(1)}" text-anchor="middle" font-size="2.4" fill="${seld?'#fff':'#ffe08a'}"${seld?'':' stroke="#000" stroke-width=".5" paint-order="stroke"'} font-family="Bahnschrift,sans-serif" pointer-events="none">${lbl}</text>`
-            + `</g>`;
+          // read-only length label (height now lives on vertices, not segments)
+          weLayer += `<text x="${sm.x.toFixed(1)}" y="${(sm.y-0.9).toFixed(1)}" text-anchor="middle" font-size="2.4" fill="#ffe08a" stroke="#000" stroke-width=".5" paint-order="stroke" font-family="Bahnschrift,sans-serif" pointer-events="none">${Lft.toFixed(0)}'</text>`;
           weLayer += `<g class="we-add" data-w="${wk}" data-seg="${i}" style="cursor:copy"><circle cx="${sm.x.toFixed(1)}" cy="${(sm.y+2.2).toFixed(1)}" r="1.9" fill="#1c9b5e" stroke="#fff" stroke-width=".4"/><text x="${sm.x.toFixed(1)}" y="${(sm.y+3.1).toFixed(1)}" text-anchor="middle" font-size="2.8" fill="#fff" font-family="Bahnschrift,sans-serif" pointer-events="none">+</text></g>`;
         }
         for (let i=0;i<pts.length;i++){ const sp = P({...pts[i], z:0});
-          weLayer += `<circle class="we-vh" data-w="${wk}" data-i="${i}" cx="${sp.x.toFixed(1)}" cy="${sp.y.toFixed(1)}" r="2.3" fill="#fff" stroke="#e2352d" stroke-width=".8" style="cursor:grab"/>`;
+          const vsel = EDIT.selV && EDIT.selV.w===wk && EDIT.selV.i===i;   // click (vs drag) selects a vertex
+          weLayer += `<circle class="we-vh" data-w="${wk}" data-i="${i}" cx="${sp.x.toFixed(1)}" cy="${sp.y.toFixed(1)}" r="${vsel?2.7:2.3}" fill="${vsel?'#2f8fe6':'#fff'}" stroke="${vsel?'#eaf4ff':'#e2352d'}" stroke-width=".8" style="cursor:grab"/>`;
+          if (vsel){ const dx=sp.x+4.4, dy=sp.y-4.4;   // × delete icon on the selected vertex
+            weLayer += `<g class="we-del" data-w="${wk}" data-i="${i}" style="cursor:pointer"><circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="2.1" fill="#c0322c" stroke="#fff" stroke-width=".45"/><text x="${dx.toFixed(1)}" y="${(dy+0.9).toFixed(1)}" text-anchor="middle" font-size="2.9" fill="#fff" font-family="Bahnschrift,sans-serif" pointer-events="none">×</text></g>`;
+          }
         }
         // ANGLE labels at each interior vertex: the bend between its two segments. Placed just
         // outside the corner (along the outward bisector). Turns green at ~180 deg (straight).
@@ -718,8 +715,8 @@
   const wetoggle = document.createElement('button'); wetoggle.id = 'wetoggle'; wetoggle.textContent = '✎';
   wetoggle.title = 'Edit foul-territory walls';
   const hint = document.createElement('div'); hint.id = 'wehint'; hint.hidden = true;
-  hint.innerHTML = '<b>Wall editor</b><br>• drag a red dot to move a vertex<br>• <b>＋</b> on a segment to add one<br>• double-click a dot to delete<br>• click a <b>length label</b> to set that run\'s height<br>• snaps to wall ends + straight (180° turns <span style="color:#7dff9b">green</span>)'
-    + '<div id="wesegrow" hidden><span>segment height</span><input type="range" id="weseg" min="0" max="30" step="0.5" value="6"><b id="wesegval">6ft</b></div>'
+  hint.innerHTML = '<b>Wall editor</b><br>• <b>drag</b> a dot to move · <b>click</b> a dot to select<br>• <b>＋</b> on a segment adds a vertex · <b>×</b> deletes the selected one<br>• selected vertex: slider sets its height (runs ramp between)<br>• middle-drag pans · snaps to ends + straight (180° <span style="color:#7dff9b">green</span>)'
+    + '<div id="wesegrow" hidden><span>vertex height</span><input type="range" id="weseg" min="0" max="30" step="0.5" value="6"><b id="wesegval">6ft</b></div>'
     + '<label id="wemirrorrow"><input type="checkbox" id="wemirror" checked> mirror L ⇋ R</label>'
     + '<button id="wetopdown">⤓ reset to top-down</button>';
   let editSyncSeg = () => {};   // assigned inside the editor IIFE; hides the height row on toggle
@@ -731,7 +728,7 @@
   let preEditCam = null;
   wetoggle.addEventListener('click', () => {
     EDIT.mode = !EDIT.mode; wetoggle.classList.toggle('on', EDIT.mode); hint.hidden = !EDIT.mode;
-    EDIT.sel = null; editSyncSeg();                                   // drop any segment selection
+    EDIT.selV = null; editSyncSeg();                                  // drop any vertex selection
     if (EDIT.mode) { preEditCam = { ...cam }; gotoTopDown(); }        // snap to map on enter
     else { if (preEditCam) applyAll(preEditCam); preEditCam = null; } // restore on exit
   });
@@ -740,67 +737,68 @@
 
   // ---- WALL EDITOR: mouse handling (left button; camera uses right button, so no clash) ----
   (function wallEditor() {
-    let vdrag = null;
+    let vdown = null;   // {w, i, sx, sy, dragging} -- a click SELECTS a vertex, a drag MOVES it
     // MIRROR: with mirror on, the two side walls stay symmetric across the y-axis. After any
-    // edit to one wall, rebuild the other as its x-negated reflection (keeps counts in sync,
-    // so add/delete mirror too). The edited wall is always the source of truth.
+    // edit to one wall, rebuild the other as its x-negated reflection (keeps counts + heights
+    // in sync, so add/delete/height mirror too). The edited wall is the source of truth.
     const OTHER = w => w === 'sideR' ? 'sideL' : 'sideR';
     const mirror = w => { if (EDIT.mirror) EDIT[OTHER(w)] = EDIT[w].map(p => (p.h!=null ? { x:-p.x, y:p.y, h:p.h } : { x:-p.x, y:p.y })); };
     const svgLoc = e => { const m = svg.getScreenCTM(); if (!m) return null;
       const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(m.inverse()); };
-    svg.addEventListener('mousedown', e => {
-      if (!EDIT.mode || e.button !== 0) return;
-      const vh = e.target.closest('.we-vh');
-      if (vh) { e.preventDefault(); e.stopPropagation(); vdrag = { w: vh.dataset.w, i: +vh.dataset.i }; return; }
-      const add = e.target.closest('.we-add');
-      if (add) { e.preventDefault(); e.stopPropagation();
-        const wk = add.dataset.w, seg = +add.dataset.seg, pts = EDIT[wk], a = pts[seg], b = pts[seg+1];
-        const mid = { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }; if (a.h!=null) mid.h = a.h;   // inherit the split segment's height
-        pts.splice(seg+1, 0, mid); mirror(wk); draw();
-      }
-      const dim = e.target.closest('.we-dim');
-      if (dim) { e.preventDefault(); e.stopPropagation(); EDIT.sel = { w: dim.dataset.w, seg: +dim.dataset.seg }; syncSeg(); draw(); }
-    });
-    addEventListener('mousemove', e => {
-      if (!vdrag || !EDIT._P) return;
-      const loc = svgLoc(e); if (!loc) return;
-      const wpt = EDIT._P.inv(loc.x, loc.y);
-      if (!(isFinite(wpt.x) && isFinite(wpt.y))) return;
-      const pts = EDIT[vdrag.w], i = vdrag.i, o = pts[i];
-      let np = { x: wpt.x, y: wpt.y }, snapped = false;
-      // 1) SNAP to the ends of any wall (~7ft) so runs connect flush to a corner/pole
+    // move vertex i of wall wk to (wx,wy), applying end-snap then 180-collinear snap, keeping .h
+    const moveVertex = (wk, i, wx, wy) => {
+      const pts = EDIT[wk], o = pts[i]; let np = { x: wx, y: wy }, snapped = false;
       if (EDIT._snap) for (const t of EDIT._snap){ if (!t || t===o) continue;
         if (Math.hypot(t.x-np.x, t.y-np.y) < 7){ np = { x:t.x, y:t.y }; snapped = true; break; } }
-      // 2) else, near-straight interior vertex -> SNAP collinear (exact 180 deg)
       if (!snapped && i>0 && i<pts.length-1){ const A=pts[i-1], C=pts[i+1];
         const va={x:A.x-np.x,y:A.y-np.y}, vc={x:C.x-np.x,y:C.y-np.y};
         const ang=Math.abs(Math.atan2(va.x*vc.y-va.y*vc.x, va.x*vc.x+va.y*vc.y))*180/Math.PI;
         if (ang>176){ const AC={x:C.x-A.x,y:C.y-A.y}, L2=(AC.x*AC.x+AC.y*AC.y)||1;
           const u=((np.x-A.x)*AC.x+(np.y-A.y)*AC.y)/L2; np = { x:A.x+AC.x*u, y:A.y+AC.y*u }; } }
       const nx=+np.x.toFixed(1), ny=+np.y.toFixed(1);
-      pts[i] = (o.h!=null ? { x:nx, y:ny, h:o.h } : { x:nx, y:ny });   // keep segment height while moving
-      mirror(vdrag.w); draw();
+      pts[i] = (o.h!=null ? { x:nx, y:ny, h:o.h } : { x:nx, y:ny });
+      mirror(wk);
+    };
+    svg.addEventListener('mousedown', e => {
+      if (!EDIT.mode || e.button !== 0) return;
+      const del = e.target.closest('.we-del');   // × on the selected vertex -> delete it
+      if (del) { e.preventDefault(); e.stopPropagation(); const wk=del.dataset.w, pts=EDIT[wk];
+        if (pts.length > 2){ pts.splice(+del.dataset.i, 1); EDIT.selV=null; syncVsel(); mirror(wk); draw(); } return; }
+      const vh = e.target.closest('.we-vh');      // press on a dot -> maybe drag, maybe click-select
+      if (vh) { e.preventDefault(); e.stopPropagation(); vdown = { w:vh.dataset.w, i:+vh.dataset.i, sx:e.clientX, sy:e.clientY, dragging:false }; return; }
+      const add = e.target.closest('.we-add');    // ＋ midpoint -> insert a vertex (interp height)
+      if (add) { e.preventDefault(); e.stopPropagation();
+        const wk = add.dataset.w, seg = +add.dataset.seg, pts = EDIT[wk], a = pts[seg], b = pts[seg+1];
+        const mid = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+        if (a.h!=null || b.h!=null) mid.h = ((a.h ?? cam.sideH)+(b.h ?? cam.sideH))/2;
+        pts.splice(seg+1, 0, mid); mirror(wk); draw();
+      }
     });
-    addEventListener('mouseup', () => { vdrag = null; });
-    svg.addEventListener('dblclick', e => {
-      if (!EDIT.mode) return;
-      const vh = e.target.closest('.we-vh'); if (!vh) return;
-      e.preventDefault(); const wk = vh.dataset.w, pts = EDIT[wk];
-      if (pts.length > 2) { pts.splice(+vh.dataset.i, 1); EDIT.sel = null; syncSeg(); mirror(wk); draw(); }   // segment indices shifted -> clear selection
+    addEventListener('mousemove', e => {
+      if (!vdown || !EDIT._P) return;
+      if (!vdown.dragging && Math.hypot(e.clientX-vdown.sx, e.clientY-vdown.sy) > 3) vdown.dragging = true;
+      if (!vdown.dragging) return;
+      const loc = svgLoc(e); if (!loc) return;
+      const wpt = EDIT._P.inv(loc.x, loc.y); if (!(isFinite(wpt.x)&&isFinite(wpt.y))) return;
+      moveVertex(vdown.w, vdown.i, wpt.x, wpt.y); draw();
+    });
+    addEventListener('mouseup', () => {
+      if (vdown && !vdown.dragging) { EDIT.selV = { w:vdown.w, i:vdown.i }; syncVsel(); draw(); }   // click = select vertex
+      vdown = null;
     });
     // mirror toggle (default ON): flipping it on immediately reflects sideR -> sideL
     EDIT.mirror = true;
     const mchk = hint.querySelector('#wemirror');
     mchk.addEventListener('change', () => { EDIT.mirror = mchk.checked; if (EDIT.mirror) mirror('sideR'); draw(); });
-    // per-segment HEIGHT slider: appears when a segment is selected; sets EDIT[w][seg].h.
+    // VERTEX HEIGHT slider: appears when a vertex is selected; sets EDIT[w][i].h.
     const segEl = hint.querySelector('#weseg'), segRow = hint.querySelector('#wesegrow'), segVal = hint.querySelector('#wesegval');
-    const syncSeg = () => { const s = EDIT.sel;
-      if (s && EDIT.mode && EDIT[s.w] && EDIT[s.w][s.seg]) { segRow.hidden = false;
-        segEl.value = EDIT[s.w][s.seg].h ?? cam.sideH; segVal.textContent = (+segEl.value)+'ft'; }
-      else { segRow.hidden = true; EDIT.sel = null; } };
-    segEl.addEventListener('input', () => { const s = EDIT.sel; if (!s) return;
-      EDIT[s.w][s.seg].h = parseFloat(segEl.value); mirror(s.w); segVal.textContent = (+segEl.value)+'ft'; draw(); });
-    editSyncSeg = syncSeg;   // expose so the ✎ toggle can hide the row on exit
+    const syncVsel = () => { const s = EDIT.selV;
+      if (s && EDIT.mode && EDIT[s.w] && EDIT[s.w][s.i]) { segRow.hidden = false;
+        segEl.value = EDIT[s.w][s.i].h ?? cam.sideH; segVal.textContent = (+segEl.value)+'ft'; }
+      else { segRow.hidden = true; EDIT.selV = null; } };
+    segEl.addEventListener('input', () => { const s = EDIT.selV; if (!s) return;
+      EDIT[s.w][s.i].h = parseFloat(segEl.value); mirror(s.w); segVal.textContent = (+segEl.value)+'ft'; draw(); });
+    editSyncSeg = syncVsel;   // expose so the ✎ toggle can hide the row on exit
   })();
 
   // ---- keyboard + mouse camera controls ----
@@ -838,11 +836,15 @@
     })();
     let drag = null;
     stage.addEventListener('contextmenu', e => e.preventDefault());
-    stage.addEventListener('mousedown', e => { if (e.button === 2) { e.preventDefault(); drag = { x: e.clientX, y: e.clientY, ctrl: e.ctrlKey }; } });
+    stage.addEventListener('mousedown', e => {
+      if (e.button === 2) { e.preventDefault(); drag = { x: e.clientX, y: e.clientY, ctrl: e.ctrlKey, mode: 'orbit' }; }
+      else if (e.button === 1) { e.preventDefault(); drag = { x: e.clientX, y: e.clientY, mode: 'pan' }; }   // middle-drag = pan
+    });
     addEventListener('mousemove', e => {
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.ctrl = e.ctrlKey;
-      if (drag.ctrl) apply({ camZ: -dy * 0.4, panY: dx * 0.6 });
+      if (drag.mode === 'pan') apply({ panX: dx * 0.2, panY: dy * 0.2 });      // grab-and-move the view
+      else if (drag.ctrl) apply({ camZ: -dy * 0.4, panY: dx * 0.6 });
       else apply({ pitch: -dy * 0.25, yaw: dx * 0.3 });
     });
     addEventListener('mouseup', () => { drag = null; });
