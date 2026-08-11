@@ -51,9 +51,9 @@
     MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330, moundR: 9, moundH: 0.833, wallHt: 8, poleHt: 45 },
   };
   const STYLE = {
-    arc:          { peak: 1.62, radius: 1.12 },
+    arc:          { radiusFromMound: 1.0556 },   // infield-skin arc radius = 95ft at base 90 (from the mound)
     infieldGrass: { scale: 0.92, cutout: 0.11 },
-    dirt:         { foulStrip: 0.13, warningTrack: 0.14, homeCircle: 0.144 },   // homeCircle 0.144*90 = 13ft radius (26ft dia, real). mound size lives in CFG (real feet)
+    dirt:         { foulStrip: 0, warningTrack: 0.14, homeCircle: 0.144 },   // foulStrip 0 = grass to the foul line in the OUTFIELD (infield skin straddles the line instead). homeCircle 0.144*90 = 13ft radius (26ft dia). mound size in CFG.
     markers:      { baseHD: 1.4, plateScale: 1.5, chalkFoulFt: 0.5, chalkBoxFt: 0.3 },   // baseHD = base half-diagonal (ft). Real base 15in(LL)/18in(MLB) -> HD ~0.9-1.06; exaggerated to 1.4 for visibility. plateScale exaggerates the 17in plate. chalk widths in REAL feet (foul 4in / box 2in, lightly exaggerated) drawn as world ribbons so they scale + foreshorten.
     wall:         { panels: 6, ease: 1.7, heightFt: 12, capFt: 0.4 },   // capFt = yellow top strip height (real ft), drawn as a world band so it foreshortens/zooms with the wall
     foulPole:     { heightFt: 15, screenWFt: 1.5 },    // heightFt set live from park; screen wing = 18in (real)
@@ -102,6 +102,29 @@
       d+=(i===0?'M ':' L ')+f2(pin)+' Q '+f2(ctrl)+' '+f2(pout);
     }
     return d+' Z';
+  }
+
+  // Infield grass diamond in WORLD feet: each edge pulled offFt INSIDE the base line,
+  // each base corner scooped by a concave cutFt-radius cut-out (the sliding area). C =
+  // [H,1B,2B,3B] world corners, cen = infield centre. Returns world points (project later).
+  function infieldGrassWorld(C, cen, offFt, cutFt){
+    const dot=(a,b)=>a.x*b.x+a.y*b.y, pts=[];
+    for(let i=0;i<4;i++){
+      const P0=C[(i+3)%4], P1=C[i], P2=C[(i+1)%4];
+      const din=vnorm(vsub(P1,P0)), dout=vnorm(vsub(P2,P1));
+      let nin={x:-din.y,y:din.x}, nout={x:-dout.y,y:dout.x};        // inward normals (toward centre)
+      if(dot(nin,vsub(cen,P1))<0) nin=vmul(nin,-1);
+      if(dot(nout,vsub(cen,P1))<0) nout=vmul(nout,-1);
+      const h=Math.sqrt(Math.max(0,cutFt*cutFt-offFt*offFt));       // along-edge dist from base to where offset edge meets the cut circle
+      const Ain=vadd(vadd(P1,vmul(nin,offFt)),  vmul(din,-h));      // offset incoming edge hits the cut circle (P0 side)
+      const Aout=vadd(vadd(P1,vmul(nout,offFt)), vmul(dout, h));    // offset outgoing edge hits the cut circle (P2 side)
+      pts.push(Ain);
+      let a0=Math.atan2(Ain.y-P1.y,Ain.x-P1.x), a1=Math.atan2(Aout.y-P1.y,Aout.x-P1.x), da=a1-a0;
+      while(da> Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;   // concave scoop = short arc around the base
+      for(let sN=1;sN<8;sN++){ const a=a0+da*sN/8; pts.push({x:P1.x+cutFt*Math.cos(a), y:P1.y+cutFt*Math.sin(a)}); }
+      pts.push(Aout);
+    }
+    return pts;
   }
 
   // viewBox is set to the stage's aspect at runtime (fitViewport) so the field
@@ -189,11 +212,25 @@
     const lerp = (b,f) => ({ x: cen.x+(b.x-cen.x)*f, y: cen.y+(b.y-cen.y)*f });
 
     const grass = path([B.H, ...w.wall]) + ' Z';
-    const yp=c.base*STYLE.arc.peak, Rarc=c.base*STYLE.arc.radius, cyw=yp-Rarc;
-    const tt=(cyw+Math.sqrt(Math.max(0,2*Rarc*Rarc-cyw*cyw)))/2;
-    const thR=Math.atan2(tt-cyw,tt), thL=Math.atan2(tt-cyw,-tt);
-    const arc=arcPts(0,cyw,Rarc,thR,thL,26);
-    const dirtFan = path([B.H,{x:tt,y:tt},...arc,B.H]) + ' Z';
+    // infield-skin outer edge = a 95ft-radius arc centred on the MOUND (real spec),
+    // not the old free-floating arc. cyw = mound y, Rarc = 95ft (scaled by park).
+    const cyw = c.pitch, Rarc = c.base * STYLE.arc.radiusFromMound;
+    // arcHit: where a ray (point A, unit dir D) meets the 95ft skin arc. Used by the
+    // straddle fan here AND the outfield-grass boundary below.
+    const arcHit = (A,D) => { const E={x:A.x, y:A.y-cyw};
+      const b=E.x*D.x+E.y*D.y, s=-b+Math.sqrt(Math.max(0, b*b-(E.x*E.x+E.y*E.y-Rarc*Rarc)));
+      return {x:A.x+D.x*s, y:A.y+D.y*s}; };
+    // the infield skin STRADDLES the foul line: its foul-side edge is the foul line
+    // pushed stradFt INTO foul (mirrors the 3ft grass offset, so the foul line is
+    // centred in a ~6ft dirt strip). The strip runs home -> until it meets the 95ft arc,
+    // then the arc curves in and grass takes the foul line the rest of the way to the pole.
+    const stradFt = c.base/30;
+    const dRf={x:SQRT1_2,y:SQRT1_2}, dLf={x:-SQRT1_2,y:SQRT1_2};              // foul-line directions
+    const rNear={x:SQRT1_2*stradFt, y:-SQRT1_2*stradFt};                      // right foul edge near home (into foul)
+    const lNear={x:-SQRT1_2*stradFt, y:-SQRT1_2*stradFt};                     // left
+    const rArc=arcHit(rNear,dRf), lArc=arcHit(lNear,dLf);
+    const arc=arcPts(0,cyw,Rarc,Math.atan2(rArc.y-cyw,rArc.x),Math.atan2(lArc.y-cyw,lArc.x),26);
+    const dirtFan = path([rNear, rArc, ...arc, lArc, lNear]) + ' Z';
     const rAt = ft => { const a=P({x:0,y:0}), b=P({x:0,y:ft}); return Math.hypot(a.x-b.x,a.y-b.y); };
     const trackW=rAt(c.base*STYLE.dirt.warningTrack), foulW=rAt(c.base*STYLE.dirt.foulStrip);
     const homeCircle = path(circPts(0,0,c.base*STYLE.dirt.homeCircle,24)) + ' Z';
@@ -216,7 +253,11 @@
       moundBody += `<path d="${ps(B)}" fill="url(#dirtg)"/>`;
     }
     const bs=[B.H,B['1B'],B['2B'],B['3B']];
-    const grassIn = roundDia(bs.map(b=>P(lerp(b,STYLE.infieldGrass.scale))), rAt(c.base*STYLE.infieldGrass.cutout), true);
+    // infield grass = real 3ft-inside-the-baseline diamond with 13ft concave cut-outs
+    // at each bag (cut = the home-circle radius, so bag cut-outs match the home circle).
+    const grassOffFt = c.base/30;                       // 3ft at base 90 (scales with park)
+    const grassCutFt = c.base*STYLE.dirt.homeCircle;    // 13ft at base 90
+    const grassIn = path(infieldGrassWorld(bs, cen, grassOffFt, grassCutFt)) + ' Z';
     // foul chalk starts where the (45deg) foul line crosses the batter's box TOP
     // edge (y = 3) — so it CONNECTS to the box corner instead of running through it
     // or floating out past it. All the home-plate chalk shares these box coords.
@@ -310,10 +351,7 @@
     // foulFt into fair. It meets the dirt at TRUE intersection POINTS — where the
     // offset line crosses the grass-line arc (inner) and the inset wall (outer) —
     // NOT via a perpendicular cap, which used to leave a notch/seam at each of the
-    // 4 foul-line corners.
-    const arcHit = (A,D) => { const E={x:A.x, y:A.y-cyw};              // circle center (0,cyw)
-      const b=E.x*D.x+E.y*D.y, s=-b+Math.sqrt(Math.max(0, b*b-(E.x*E.x+E.y*E.y-Rarc*Rarc)));
-      return {x:A.x+D.x*s, y:A.y+D.y*s}; };
+    // 4 foul-line corners. (arcHit is defined up with the straddle fan and reused here.)
     const segHit = (A,D,P,Q) => { const Dq={x:Q.x-P.x,y:Q.y-P.y}, den=D.x*Dq.y-D.y*Dq.x;
       if(Math.abs(den)<1e-9) return Q;
       const t=((P.x-A.x)*Dq.y-(P.y-A.y)*Dq.x)/den; return {x:A.x+D.x*t, y:A.y+D.y*t}; };
