@@ -303,15 +303,16 @@
     // FOUL-TERRITORY grass apron = the whole enclosed ground: traced along the backstop
     // -> right side wall -> outfield fence -> left side wall (all editable polylines).
     const apronPts = [ ...EDIT.backstop, ...EDIT.sideR, ...[...EDIT.outfield].reverse(), ...[...EDIT.sideL].reverse() ];
-    // DUGOUT footprints (computed early): the foul-grass apron is CUT OUT at these rectangles
-    // (even-odd holes) so each dugout is a real recess in the ground, not a box drawn on top.
+    // DUGOUT footprint corners (computed early so the wall editor's snap targets can use them).
+    // NOTE: no apron cut-out -- the dugout's own opaque walls (pit -> grass level) cover the
+    // footprint ground, so it reads sunken without a fragile even-odd hole (which broke where the
+    // dugout, at large setback, extends past the side-wall edge of the foul-grass apron).
     const DG = DUGOUT, Zp=(p,z)=>({x:p.x,y:p.y,z}), setb = cam.dugoutSet ?? DG.setback;
     const dgCorners = (fdir, fnorm) => { const FN=vadd(vmul(fdir,DG.nearD),vmul(fnorm,setb)), FF=vadd(vmul(fdir,DG.nearD+DG.length),vmul(fnorm,setb));
       return { FN, FF, BN:vadd(FN,vmul(fnorm,DG.depth)), BF:vadd(FF,vmul(fnorm,DG.depth)) }; };
     const dgR = dgCorners({x:SQRT1_2,y:SQRT1_2}, {x:SQRT1_2,y:-SQRT1_2});     // 1B side (right)
     const dgL = dgCorners({x:-SQRT1_2,y:SQRT1_2}, {x:-SQRT1_2,y:-SQRT1_2});   // 3B side (left)
-    const dgHoles = [dgR, dgL].map(c => ' ' + path([c.FN,c.FF,c.BF,c.BN]) + ' Z').join('');
-    const apron = path(apronPts) + ' Z' + dgHoles;   // even-odd -> dugout footprints are holes
+    const apron = path(apronPts) + ' Z';
     // GRASS DEPTH: extrude the field's outer edge DOWN by grassDepthFt so the ground
     // reads as a raised slab with thickness (grass top at z=0, dark soil side below).
     const slabD = cam.grassD ?? STYLE.grassDepthFt;
@@ -661,7 +662,7 @@
       <!-- field-slab thickness (extruded edge) UNDER the ground surface -->
       ${grassLip}
       <!-- foul-territory + backstop grass apron UNDER everything -->
-      <path d="${apron}" fill="${STYLE.colors.grass[1]}" fill-rule="evenodd"/>
+      <path d="${apron}" fill="${STYLE.colors.grass[1]}"/>
       <path d="${grass}" fill="url(#dirtg)"/>
       <path d="${homeCircle}" fill="url(#dirtg)"/>
       <!-- the straddle fan adds the 3ft dirt strip on the FOUL side of each foul line
