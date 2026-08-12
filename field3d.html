@@ -928,6 +928,59 @@
     stage.addEventListener('wheel', e => { e.preventDefault(); if (e.ctrlKey) apply({ k: -e.deltaY * 0.00002 }); else apply({ zoom: -e.deltaY * 0.0015 * cam.zoom }); }, { passive: false });
   })();
 
+  // ---- TOUCH controls: translate finger gestures into the existing mouse handlers, so the
+  //  camera + wall-editor logic is reused unchanged.
+  //   1-finger tap ............... select (editor)     -> left-click (button 0) on the target
+  //   1-finger drag on a handle .. move that vertex     -> left-drag (0) on the handle
+  //   1-finger drag on the field . pan                  -> middle-drag (1) on the stage
+  //   1-finger press & hold+drag . orbit (pitch/yaw)    -> right-drag (2) on the stage
+  //   2-finger pinch ............. zoom                 -> wheel events
+  (function touchControls(){
+    stage.style.touchAction = 'none';           // stop the browser's own pan/zoom on the field
+    const TAP_MOVE = 8, HOLD_MS = 330;          // px that counts as a drag; press-hold time -> orbit
+    let t = null, pinch = null;
+    const me = (type, x, y, b) => new MouseEvent(type, { bubbles:true, cancelable:true, clientX:x, clientY:y, button:b, buttons: b===0?1:(b===1?4:2), ctrlKey:false });
+    const btn = m => m==='editor' ? 0 : m==='pan' ? 1 : 2;
+    stage.addEventListener('touchstart', e => {
+      if (e.touches.length === 1){
+        const p = e.touches[0], el = document.elementFromPoint(p.clientX, p.clientY);
+        const onHandle = EDIT.mode && el && el.closest && el.closest('.we-vh,.we-add,.we-del');
+        t = { x0:p.clientX, y0:p.clientY, x:p.clientX, y:p.clientY, moved:false, mode:null, onHandle, target: onHandle || el || stage };
+        t.hold = setTimeout(() => { if (t && !t.moved && !t.onHandle){ t.mode='orbit'; stage.dispatchEvent(me('mousedown',t.x,t.y,2)); } }, HOLD_MS);
+        e.preventDefault();
+      } else if (e.touches.length === 2){
+        if (t){ clearTimeout(t.hold); t=null; }
+        const [a,b]=e.touches; pinch = { d: Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY), cx:(a.clientX+b.clientX)/2, cy:(a.clientY+b.clientY)/2 };
+        e.preventDefault();
+      }
+    }, { passive:false });
+    stage.addEventListener('touchmove', e => {
+      if (pinch && e.touches.length >= 2){
+        const [a,b]=e.touches, d=Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY), dd=d-pinch.d;
+        if (dd) stage.dispatchEvent(new WheelEvent('wheel',{ bubbles:true, cancelable:true, deltaY:-dd*1.5, clientX:pinch.cx, clientY:pinch.cy }));
+        pinch.d = d; e.preventDefault(); return;
+      }
+      if (!t || e.touches.length !== 1) return;
+      const p = e.touches[0]; t.x=p.clientX; t.y=p.clientY;
+      if (!t.moved && Math.hypot(t.x-t.x0, t.y-t.y0) > TAP_MOVE){
+        t.moved = true; clearTimeout(t.hold);
+        if (!t.mode){ t.mode = t.onHandle ? 'editor' : 'pan';                        // classify: vertex-move vs pan
+          (t.mode==='editor' ? t.target : stage).dispatchEvent(me('mousedown', t.x0, t.y0, btn(t.mode))); }
+      }
+      if (t.mode) dispatchEvent(me('mousemove', t.x, t.y, btn(t.mode)));              // camera + editor listen on window
+      e.preventDefault();
+    }, { passive:false });
+    const end = e => {
+      if (pinch && (!e.touches || e.touches.length < 2)) pinch = null;
+      if (!t) return; clearTimeout(t.hold);
+      if (!t.moved && !t.mode){ t.target.dispatchEvent(me('mousedown', t.x, t.y, 0)); dispatchEvent(me('mouseup', t.x, t.y, 0)); }   // TAP -> select
+      else if (t.mode) dispatchEvent(me('mouseup', t.x, t.y, btn(t.mode)));           // end drag / orbit
+      t = null;
+    };
+    stage.addEventListener('touchend', end, { passive:false });
+    stage.addEventListener('touchcancel', end, { passive:false });
+  })();
+
   let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { fitViewport(); draw(); }, 120); });
   fitViewport();
   draw();
