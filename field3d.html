@@ -441,22 +441,20 @@
     if (cam.fenceDist ?? true) {
       const of = EDIT.outfield, nO = of.length;
       // paint `txt` centered at world (wx,wy,zc), reading along ground-tangent (tx,ty), ~htFt tall
-      const paintOnWall = (wx,wy,zc,tx,ty,htFt,txt,color) => {
+      const paintOnWall = (wx,wy,zc,tx,ty,htFt,txt,color,anchor) => {
         const O=P({x:wx,y:wy,z:zc}), R=P({x:wx+tx,y:wy+ty,z:zc}), U=P({x:wx,y:wy,z:zc+1});
         const rx=R.x-O.x, ry=R.y-O.y, ux=U.x-O.x, uy=U.y-O.y, s=htFt;   // per-foot screen bases
         const m=[(rx*s).toFixed(3),(ry*s).toFixed(3),(-ux*s).toFixed(3),(-uy*s).toFixed(3),O.x.toFixed(2),O.y.toFixed(2)];
-        return `<text transform="matrix(${m.join(',')})" font-size="1" text-anchor="middle" dominant-baseline="central" font-family="Bahnschrift,sans-serif" font-weight="700" fill="${color}" stroke="#0b0b0b" stroke-width="0.05" paint-order="stroke">${txt}</text>`;
+        return `<text transform="matrix(${m.join(',')})" font-size="1" text-anchor="${anchor||'middle'}" dominant-baseline="central" font-family="Bahnschrift,sans-serif" font-weight="700" fill="${color}" stroke="#0b0b0b" stroke-width="0.05" paint-order="stroke">${txt}</text>`;
       };
       for (let i=0;i<nO;i++){ const v=of[i], d=''+Math.round(Math.hypot(v.x,v.y)), h=v.h ?? H;
         if (h < 1.5) continue;
         const A=of[Math.max(0,i-1)], C=of[Math.min(nO-1,i+1)];
-        let ax=v.x, ay=v.y, tx=C.x-A.x, ty=C.y-A.y; { const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl; }
-        // POLE (end) vertices sit at the edge-on corner -> offset the anchor INWARD along the wall
-        // so the number lands on the readable wall face near the pole (still painted on the wall).
-        if (i===0 || i===nO-1){ const nb = i===0 ? of[1] : of[nO-2];
-          let dx=nb.x-v.x, dy=nb.y-v.y; const dl=Math.hypot(dx,dy)||1; const inFt=Math.min(22, dl*0.4);
-          ax=v.x+dx/dl*inFt; ay=v.y+dy/dl*inFt; tx=dx/dl; ty=dy/dl; }
-        fenceDist += paintOnWall(ax, ay, h*0.5, tx, ty, Math.max(2.5, Math.min(5.5, h*0.62)), d, '#eef3f8');
+        let tx=C.x-A.x, ty=C.y-A.y; const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+        // Anchor AT the vertex. Pole (end) vertices align TO the vertex so the number reads inward
+        // from the corner: left-field pole start-aligned (left), right-field pole end-aligned (right).
+        const anchor = i===0 ? 'start' : (i===nO-1 ? 'end' : 'middle');
+        fenceDist += paintOnWall(v.x, v.y, h*0.5, tx, ty, Math.max(2.5, Math.min(5.5, h*0.62)), d, '#eef3f8', anchor);
       }
     }
     // SCALE-REFERENCE billboard: an upright person image, feet on the ground at (bbX,bbY),
