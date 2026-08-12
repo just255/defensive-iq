@@ -250,8 +250,8 @@
   // Sunken box: back/end retaining walls (pit -> field level, nothing above grass), 3 front STAIRS
   // running the length, a floating bench, and a front FENCE built with the wall system (low wall
   // with an entrance gap at each end). setback 25 min from foul line; nearD 48 >= 45 min from home.
-  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 22, pit: 6, stairRun: 9, nSteps: 3, railH: 3, ent: 9, wallT: 1,
-    col: { tread:'#b2b6bb', riser:'#8b9096', floor:'#9ea3a9', back:'#6e747b', end:'#5f656d', cap:'#cfd3d7', bench:'#7a5330', benchArm:'#5a3d24', rail:'#d7dbe0', railPost:'#b6bcc2' } };
+  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 22, pit: 5, stairRun: 9, nSteps: 3, railH: 1.6, ent: 9, wallT: 1, roofH: 4.5, roofT: 0.6,
+    col: { tread:'#b2b6bb', riser:'#8b9096', floor:'#9ea3a9', back:'#6e747b', end:'#5f656d', cap:'#cfd3d7', bench:'#7a5330', benchArm:'#5a3d24', rail:'#d7dbe0', railPost:'#b6bcc2', roofTop:'#4a5058', roofUnder:'#30353b', roofEdge:'#23272d', post:'#565b62' } };
 
   function renderField(cam) {
     const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
@@ -457,29 +457,37 @@
     // above grass) with concrete top CAPS for real thickness; 3 front STAIRS run the length down
     // into the pit; a FLOATING wood bench sits off the back; a distinct METAL railing lines the
     // front top edge with an entrance GAP at each end. pt(l,d) = length l, depth d from FN.
-    const dgDraw = (C) => { const {FN,FF,BN,BF}=C, pd=DG.pit, pit=-pd, run=DG.stairRun, N=DG.nSteps, wt=DG.wallT, c=DG.col, L=DG.length;
+    const dgDraw = (C) => { const {FN,FF,BN,BF}=C, pd=DG.pit, pit=-pd, run=DG.stairRun, N=DG.nSteps, wt=DG.wallT, rH=DG.roofH, rt=DG.roofT, c=DG.col, L=DG.length;
       const q=(a,b,za,zb,f)=>`<path d="${path([Zp(a,za),Zp(b,za),Zp(b,zb),Zp(a,zb)])} Z" fill="${f}" stroke="none"/>`;
       const quad=(pts,f)=>`<path d="${path(pts)} Z" fill="${f}" stroke="none"/>`;
       const line=(a,za,b,zb,w,f)=>{const A=P(Zp(a,za)),B=P(Zp(b,zb));return `<line x1="${A.x.toFixed(2)}" y1="${A.y.toFixed(2)}" x2="${B.x.toFixed(2)}" y2="${B.y.toFixed(2)}" stroke="${f}" stroke-width="${w}" stroke-linecap="round"/>`;};
       const along=vnorm(vsub(FF,FN)), f2b=vnorm(vsub(BN,FN)), pt=(l,d)=>vadd(FN, vadd(vmul(along,l), vmul(f2b,d)));
       let s='';
-      s += q(BN,BF, pit, 0, c.back);                                                         // back wall face (pit -> field level)
-      s += q(FN,BN, pit, 0, c.end) + q(FF,BF, pit, 0, c.end);                                // end wall faces
-      s += quad([Zp(pt(0,run),pit),Zp(pt(L,run),pit),Zp(BF,pit),Zp(BN,pit)], c.floor);       // pit floor (behind stairs)
+      // grass patch under the footprint (+margin) so there's no dark void where the dugout, at
+      // large setback, extends past the foul-grass apron edge (prevents a "see-through" gap).
+      const m=6, gp=[pt(-m,-m),pt(L+m,-m),pt(L+m,DG.depth+m),pt(-m,DG.depth+m)];
+      s += quad([Zp(gp[0],0),Zp(gp[1],0),Zp(gp[2],0),Zp(gp[3],0)], STYLE.colors.grass[1]);
+      s += q(BN,BF, pit, rH, c.back);                                                         // back wall (pit -> roof)
+      s += q(FN,BN, pit, rH, c.end) + q(FF,BF, pit, rH, c.end);                               // end walls (pit -> roof)
+      s += quad([Zp(pt(0,run),pit),Zp(pt(L,run),pit),Zp(BF,pit),Zp(BN,pit)], c.floor);        // pit floor (behind stairs)
       const b0N=pt(3,DG.depth-1.5), b0F=pt(L-3,DG.depth-1.5), b1N=pt(3,DG.depth-5.5), b1F=pt(L-3,DG.depth-5.5), bz=pit+1.7;
-      s += quad([Zp(b0N,bz),Zp(b0F,bz),Zp(b1F,bz),Zp(b1N,bz)], c.bench);                      // floating bench seat
-      s += q(b1N,b1F, bz-0.5, bz, c.benchArm);                                                // seat front lip (thin -> floats)
-      for (let i=0;i<N;i++){ const zT=-pd*i/N, zB=-pd*(i+1)/N, dF=run*i/N, dB=run*(i+1)/N;    // FRONT STAIRS
-        s += q(pt(0,dF),pt(L,dF), zT, zB, c.riser);                                           // riser
-        s += quad([Zp(pt(0,dF),zB),Zp(pt(L,dF),zB),Zp(pt(L,dB),zB),Zp(pt(0,dB),zB)], c.tread);// tread
+      s += quad([Zp(b0N,bz),Zp(b0F,bz),Zp(b1F,bz),Zp(b1N,bz)], c.bench) + q(b1N,b1F, bz-0.5, bz, c.benchArm);  // floating bench
+      for (let i=0;i<N;i++){ const zT=-pd*i/N, zB=-pd*(i+1)/N, dF=run*i/N, dB=run*(i+1)/N;     // FRONT STAIRS
+        s += q(pt(0,dF),pt(L,dF), zT, zB, c.riser);
+        s += quad([Zp(pt(0,dF),zB),Zp(pt(L,dF),zB),Zp(pt(L,dB),zB),Zp(pt(0,dB),zB)], c.tread);
       }
       s += quad([Zp(BN,0),Zp(BF,0),Zp(vadd(BF,vmul(f2b,-wt)),0),Zp(vadd(BN,vmul(f2b,-wt)),0)], c.cap);   // WALL THICKNESS: back cap
       s += quad([Zp(FN,0),Zp(BN,0),Zp(vadd(BN,vmul(along,wt)),0),Zp(vadd(FN,vmul(along,wt)),0)], c.cap); // left end cap
       s += quad([Zp(FF,0),Zp(BF,0),Zp(vadd(BF,vmul(along,-wt)),0),Zp(vadd(FF,vmul(along,-wt)),0)], c.cap); // right end cap
-      const rz=DG.railH, ent=DG.ent, rL=pt(ent,0), rR=pt(L-ent,0);                            // FRONT metal railing, entrance gap each end
-      s += line(rL,rz,rR,rz,0.9,c.rail) + line(rL,rz-0.6,rR,rz-0.6,0.4,c.railPost);
-      s += line(rL,0,rL,rz,0.8,c.rail) + line(rR,0,rR,rz,0.8,c.rail);
+      const rz=DG.railH, ent=DG.ent, rL=pt(ent,0), rR=pt(L-ent,0);                            // low front metal railing, entrance gap each end
+      s += line(rL,rz,rR,rz,0.9,c.rail) + line(rL,0,rL,rz,0.8,c.rail) + line(rR,0,rR,rz,0.8,c.rail);
       for (let i=1;i<8;i++){ const px=pt(ent+(L-2*ent)*i/8,0); s += line(px,0,px,rz,0.5,c.railPost); }
+      // ROOF: front posts + a slab WITH THICKNESS (underside, edge fascia, top). Covers the pit so
+      // you don't look straight down into it (fixes see-through); open at the front.
+      s += line(FN,0,FN,rH,1.1,c.post) + line(FF,0,FF,rH,1.1,c.post);
+      s += quad([Zp(FN,rH-rt),Zp(FF,rH-rt),Zp(BF,rH-rt),Zp(BN,rH-rt)], c.roofUnder);          // underside
+      s += q(FN,FF, rH-rt, rH, c.roofEdge) + q(FN,BN, rH-rt, rH, c.roofEdge) + q(FF,BF, rH-rt, rH, c.roofEdge);  // fascias (thickness)
+      s += quad([Zp(FN,rH),Zp(FF,rH),Zp(BF,rH),Zp(BN,rH)], c.roofTop);                        // top
       return s; };
     const dugouts = dgDraw(dgR) + dgDraw(dgL);
     EDIT._snap.push(dgR.FN, dgR.FF, dgL.FN, dgL.FF);   // wall-connection vertices
