@@ -247,7 +247,7 @@
     p.push({x:pole.x,y:pole.y}); return p; };
   // DUGOUTS (fixed, mirrored 1B/3B): full sunken dugout in foul territory. Authoritative-ish dims
   // (ft): set back from the foul line, near end from home, run length, depth, sunk pit, roof + rail.
-  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 20, pit: 3, roofH: 7.5, fascia: 1.3,   // setback 25ft = pro min from foul line; nearD 48 >= 45ft min from home
+  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 20, pit: 4, roofH: 4, fascia: 0.5,   // ABOVE ground is only wall-height (~4ft); standing room comes from the ~4ft sunk pit. setback 25 min; nearD 48 >= 45 min
     col: { floor:'#7c828a', step:'#5c626a', back:'#8a9099', end:'#767c85', roof:'#4c525b', roofEdge:'#363b42', bench:'#2f5a3f', benchFace:'#244a33' } };
 
   function renderField(cam) {
