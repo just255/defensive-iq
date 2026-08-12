@@ -247,8 +247,8 @@
     p.push({x:pole.x,y:pole.y}); return p; };
   // DUGOUTS (fixed, mirrored 1B/3B): full sunken dugout in foul territory. Authoritative-ish dims
   // (ft): set back from the foul line, near end from home, run length, depth, sunk pit, roof + rail.
-  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 20, pit: 3, roofH: 8.5, railH: 3, fascia: 1.4,   // setback 25ft = pro min from foul line; nearD 48 >= 45ft min from home
-    col: { floor:'#181d24', wall:'#39424e', wallDark:'#2b333d', roof:'#242a33', roofEdge:'#12161b', rail:'#525d68', bench:'#6b5236', benchFace:'#5a4530' } };
+  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 20, pit: 3, roofH: 7.5, fascia: 1.3,   // setback 25ft = pro min from foul line; nearD 48 >= 45ft min from home
+    col: { floor:'#7c828a', step:'#5c626a', back:'#8a9099', end:'#767c85', roof:'#4c525b', roofEdge:'#363b42', bench:'#2f5a3f', benchFace:'#244a33' } };
 
   function renderField(cam) {
     const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
@@ -440,21 +440,27 @@
     // DUGOUTS: full sunken dugout in foul territory along each foul line (1B + 3B, mirrored). Pit
     // (sunk), back + end walls, flat roof + fascia, open front with a low rail, and a bench. The
     // two front-end corners of each dugout are pushed to EDIT._snap so side walls can connect to them.
-    const DG = DUGOUT, Zp=(p,z)=>({x:p.x,y:p.y,z});
-    const dgCorners = (fdir, fnorm) => { const FN=vadd(vmul(fdir,DG.nearD),vmul(fnorm,DG.setback)), FF=vadd(vmul(fdir,DG.nearD+DG.length),vmul(fnorm,DG.setback));
+    const DG = DUGOUT, Zp=(p,z)=>({x:p.x,y:p.y,z}), setb = cam.dugoutSet ?? DG.setback;
+    const dgCorners = (fdir, fnorm) => { const FN=vadd(vmul(fdir,DG.nearD),vmul(fnorm,setb)), FF=vadd(vmul(fdir,DG.nearD+DG.length),vmul(fnorm,setb));
       return { FN, FF, BN:vadd(FN,vmul(fnorm,DG.depth)), BF:vadd(FF,vmul(fnorm,DG.depth)) }; };
-    const dgDraw = (C) => { const {FN,FF,BN,BF}=C, pit=-DG.pit, rH=DG.roofH, bh=pit+1.5;
+    // Drawn back-to-front. The pit is SUNK into the ground: the front edge is a STEP DOWN from
+    // grass (z=0) to the pit floor (z=-pit) with nothing above it (open), so you see into the
+    // dugout. Roof covers the BACK ~58%; the front is open to the sky. Solid concrete colours.
+    const dgDraw = (C) => { const {FN,FF,BN,BF}=C, pit=-DG.pit, rH=DG.roofH, bh=pit+1.4, c=DG.col;
       const q=(a,b,za,zb,f)=>`<path d="${path([Zp(a,za),Zp(b,za),Zp(b,zb),Zp(a,zb)])} Z" fill="${f}" stroke="none"/>`;
-      const bnF=vadd(BN,vmul(vnorm(vsub(FN,BN)),4)), bfF=vadd(BF,vmul(vnorm(vsub(FF,BF)),4));   // bench 4ft deep off back wall
+      const quad=(pts,f)=>`<path d="${path(pts)} Z" fill="${f}" stroke="none"/>`;
+      const f2b=vnorm(vsub(BN,FN));                                                        // front -> back unit
+      const bnF=vadd(BN,vmul(f2b,-4)), bfF=vadd(BF,vmul(f2b,-4));                            // bench 4ft off the back wall
+      const rfN=vadd(FN,vmul(f2b,DG.depth*0.42)), rfF=vadd(FF,vmul(f2b,DG.depth*0.42));     // roof front line (front ~42% open)
       let s='';
-      s += `<path d="${path([Zp(FN,pit),Zp(FF,pit),Zp(BF,pit),Zp(BN,pit)])} Z" fill="${DG.col.floor}"/>`;   // pit floor
-      s += q(BN,BF, pit, rH, DG.col.wall);                                                                   // back wall
-      s += q(FN,BN, pit, rH, DG.col.wallDark) + q(FF,BF, pit, rH, DG.col.wallDark);                          // end walls
-      s += q(bnF,bfF, pit, bh, DG.col.benchFace);                                                            // bench front face
-      s += `<path d="${path([Zp(BN,bh),Zp(BF,bh),Zp(bfF,bh),Zp(bnF,bh)])} Z" fill="${DG.col.bench}"/>`;      // bench seat top
-      s += `<path d="${path([Zp(FN,rH),Zp(FF,rH),Zp(BF,rH),Zp(BN,rH)])} Z" fill="${DG.col.roof}"/>`;         // roof
-      s += q(FN,FF, rH-DG.fascia, rH, DG.col.roofEdge);                                                      // roof fascia (front)
-      s += q(FN,FF, 0, DG.railH, DG.col.rail);                                                               // front rail (open above)
+      s += q(BN,BF, pit, rH, c.back);                                                        // tall back wall (pit -> roof)
+      s += quad([Zp(FN,pit),Zp(FF,pit),Zp(BF,pit),Zp(BN,pit)], c.floor);                     // sunken pit floor
+      s += q(bnF,bfF, pit, bh, c.benchFace);                                                 // bench front face
+      s += quad([Zp(BN,bh),Zp(BF,bh),Zp(bfF,bh),Zp(bnF,bh)], c.bench);                       // bench seat
+      s += q(FN,BN, pit, rH, c.end) + q(FF,BF, pit, rH, c.end);                              // end walls (pit -> roof)
+      s += q(FN,FF, 0, pit, c.step);                                                         // FRONT STEP: grass -> pit (cutout), OPEN above
+      s += quad([Zp(rfN,rH),Zp(rfF,rH),Zp(BF,rH),Zp(BN,rH)], c.roof);                        // roof over the back
+      s += q(rfN,rfF, rH-DG.fascia, rH, c.roofEdge);                                         // roof fascia (front lip of roof)
       return s; };
     const dgR = dgCorners({x:SQRT1_2,y:SQRT1_2}, {x:SQRT1_2,y:-SQRT1_2});     // 1B side (right)
     const dgL = dgCorners({x:-SQRT1_2,y:SQRT1_2}, {x:-SQRT1_2,y:-SQRT1_2});   // 3B side (left)
@@ -699,7 +705,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 77, yaw: 0, k: 0.04, zoom: 2.5, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 32, strafe: 0, camZ: -6, mowOut: 1, mowIn: 0.5, bsH: 4, sideH: 6, grassD: 3, grassLip: 0.25, bbX: -3, bbY: -2, bbH: 7.75, fenceDist: true };   // default = the batter's-eye view   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 77, yaw: 0, k: 0.04, zoom: 2.5, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 32, strafe: 0, camZ: -6, mowOut: 1, mowIn: 0.5, bsH: 4, sideH: 6, grassD: 3, grassLip: 0.25, bbX: -3, bbY: -2, bbH: 7.75, fenceDist: true, dugoutSet: 50 };   // default = the batter's-eye view   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
@@ -731,6 +737,7 @@
     ['camZ', -150, 150, 1, 'ft', 'cam Z (height)'],
     ['bsH', 4, 30, 0.5, 'ft', 'backstop ht'],
     ['sideH', 0, 30, 0.5, 'ft', 'side-wall ht'],
+    ['dugoutSet', 25, 140, 1, 'ft', 'dugout setback'],
     ['grassD', 0, 12, 0.5, 'ft', 'grass depth'],
     ['grassLip', 0, 4, 0.25, 'ft', 'grass lift'],
     ['bbH', 0, 14, 0.25, 'ft', 'scale-ref ht (0=off)'],
