@@ -247,8 +247,11 @@
     p.push({x:pole.x,y:pole.y}); return p; };
   // DUGOUTS (fixed, mirrored 1B/3B): full sunken dugout in foul territory. Authoritative-ish dims
   // (ft): set back from the foul line, near end from home, run length, depth, sunk pit, roof + rail.
-  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 20, pit: 4, roofH: 4, fascia: 0.5,   // ABOVE ground is only wall-height (~4ft); standing room comes from the ~4ft sunk pit. setback 25 min; nearD 48 >= 45 min
-    col: { floor:'#7c828a', step:'#5c626a', back:'#8a9099', end:'#767c85', roof:'#4c525b', roofEdge:'#363b42', bench:'#2f5a3f', benchFace:'#244a33' } };
+  // Sunken box: back/end retaining walls (pit -> field level, nothing above grass), 3 front STAIRS
+  // running the length, a floating bench, and a front FENCE built with the wall system (low wall
+  // with an entrance gap at each end). setback 25 min from foul line; nearD 48 >= 45 min from home.
+  const DUGOUT = { setback: 25, nearD: 48, length: 70, depth: 22, pit: 6, stairRun: 9, nSteps: 3, railH: 3, ent: 9, wallT: 1,
+    col: { tread:'#b2b6bb', riser:'#8b9096', floor:'#9ea3a9', back:'#6e747b', end:'#5f656d', cap:'#cfd3d7', bench:'#7a5330', benchArm:'#5a3d24', rail:'#d7dbe0', railPost:'#b6bcc2' } };
 
   function renderField(cam) {
     const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
@@ -300,7 +303,15 @@
     // FOUL-TERRITORY grass apron = the whole enclosed ground: traced along the backstop
     // -> right side wall -> outfield fence -> left side wall (all editable polylines).
     const apronPts = [ ...EDIT.backstop, ...EDIT.sideR, ...[...EDIT.outfield].reverse(), ...[...EDIT.sideL].reverse() ];
-    const apron = path(apronPts) + ' Z';
+    // DUGOUT footprints (computed early): the foul-grass apron is CUT OUT at these rectangles
+    // (even-odd holes) so each dugout is a real recess in the ground, not a box drawn on top.
+    const DG = DUGOUT, Zp=(p,z)=>({x:p.x,y:p.y,z}), setb = cam.dugoutSet ?? DG.setback;
+    const dgCorners = (fdir, fnorm) => { const FN=vadd(vmul(fdir,DG.nearD),vmul(fnorm,setb)), FF=vadd(vmul(fdir,DG.nearD+DG.length),vmul(fnorm,setb));
+      return { FN, FF, BN:vadd(FN,vmul(fnorm,DG.depth)), BF:vadd(FF,vmul(fnorm,DG.depth)) }; };
+    const dgR = dgCorners({x:SQRT1_2,y:SQRT1_2}, {x:SQRT1_2,y:-SQRT1_2});     // 1B side (right)
+    const dgL = dgCorners({x:-SQRT1_2,y:SQRT1_2}, {x:-SQRT1_2,y:-SQRT1_2});   // 3B side (left)
+    const dgHoles = [dgR, dgL].map(c => ' ' + path([c.FN,c.FF,c.BF,c.BN]) + ' Z').join('');
+    const apron = path(apronPts) + ' Z' + dgHoles;   // even-odd -> dugout footprints are holes
     // GRASS DEPTH: extrude the field's outer edge DOWN by grassDepthFt so the ground
     // reads as a raised slab with thickness (grass top at z=0, dark soil side below).
     const slabD = cam.grassD ?? STYLE.grassDepthFt;
@@ -440,30 +451,35 @@
     // DUGOUTS: full sunken dugout in foul territory along each foul line (1B + 3B, mirrored). Pit
     // (sunk), back + end walls, flat roof + fascia, open front with a low rail, and a bench. The
     // two front-end corners of each dugout are pushed to EDIT._snap so side walls can connect to them.
-    const DG = DUGOUT, Zp=(p,z)=>({x:p.x,y:p.y,z}), setb = cam.dugoutSet ?? DG.setback;
-    const dgCorners = (fdir, fnorm) => { const FN=vadd(vmul(fdir,DG.nearD),vmul(fnorm,setb)), FF=vadd(vmul(fdir,DG.nearD+DG.length),vmul(fnorm,setb));
-      return { FN, FF, BN:vadd(FN,vmul(fnorm,DG.depth)), BF:vadd(FF,vmul(fnorm,DG.depth)) }; };
-    // Drawn back-to-front. The pit is SUNK into the ground: the front edge is a STEP DOWN from
-    // grass (z=0) to the pit floor (z=-pit) with nothing above it (open), so you see into the
-    // dugout. Roof covers the BACK ~58%; the front is open to the sky. Solid concrete colours.
-    const dgDraw = (C) => { const {FN,FF,BN,BF}=C, pit=-DG.pit, rH=DG.roofH, bh=pit+1.4, c=DG.col;
+    // (DG / dgCorners / dgR / dgL are computed early, above, so the apron can cut the footprint holes.)
+    // A SUNKEN BOX cut into the ground: back/end retaining walls run pit -> field level (nothing
+    // above grass) with concrete top CAPS for real thickness; 3 front STAIRS run the length down
+    // into the pit; a FLOATING wood bench sits off the back; a distinct METAL railing lines the
+    // front top edge with an entrance GAP at each end. pt(l,d) = length l, depth d from FN.
+    const dgDraw = (C) => { const {FN,FF,BN,BF}=C, pd=DG.pit, pit=-pd, run=DG.stairRun, N=DG.nSteps, wt=DG.wallT, c=DG.col, L=DG.length;
       const q=(a,b,za,zb,f)=>`<path d="${path([Zp(a,za),Zp(b,za),Zp(b,zb),Zp(a,zb)])} Z" fill="${f}" stroke="none"/>`;
       const quad=(pts,f)=>`<path d="${path(pts)} Z" fill="${f}" stroke="none"/>`;
-      const f2b=vnorm(vsub(BN,FN));                                                        // front -> back unit
-      const bnF=vadd(BN,vmul(f2b,-4)), bfF=vadd(BF,vmul(f2b,-4));                            // bench 4ft off the back wall
-      const rfN=vadd(FN,vmul(f2b,DG.depth*0.42)), rfF=vadd(FF,vmul(f2b,DG.depth*0.42));     // roof front line (front ~42% open)
+      const line=(a,za,b,zb,w,f)=>{const A=P(Zp(a,za)),B=P(Zp(b,zb));return `<line x1="${A.x.toFixed(2)}" y1="${A.y.toFixed(2)}" x2="${B.x.toFixed(2)}" y2="${B.y.toFixed(2)}" stroke="${f}" stroke-width="${w}" stroke-linecap="round"/>`;};
+      const along=vnorm(vsub(FF,FN)), f2b=vnorm(vsub(BN,FN)), pt=(l,d)=>vadd(FN, vadd(vmul(along,l), vmul(f2b,d)));
       let s='';
-      s += q(BN,BF, pit, rH, c.back);                                                        // tall back wall (pit -> roof)
-      s += quad([Zp(FN,pit),Zp(FF,pit),Zp(BF,pit),Zp(BN,pit)], c.floor);                     // sunken pit floor
-      s += q(bnF,bfF, pit, bh, c.benchFace);                                                 // bench front face
-      s += quad([Zp(BN,bh),Zp(BF,bh),Zp(bfF,bh),Zp(bnF,bh)], c.bench);                       // bench seat
-      s += q(FN,BN, pit, rH, c.end) + q(FF,BF, pit, rH, c.end);                              // end walls (pit -> roof)
-      s += q(FN,FF, 0, pit, c.step);                                                         // FRONT STEP: grass -> pit (cutout), OPEN above
-      s += quad([Zp(rfN,rH),Zp(rfF,rH),Zp(BF,rH),Zp(BN,rH)], c.roof);                        // roof over the back
-      s += q(rfN,rfF, rH-DG.fascia, rH, c.roofEdge);                                         // roof fascia (front lip of roof)
+      s += q(BN,BF, pit, 0, c.back);                                                         // back wall face (pit -> field level)
+      s += q(FN,BN, pit, 0, c.end) + q(FF,BF, pit, 0, c.end);                                // end wall faces
+      s += quad([Zp(pt(0,run),pit),Zp(pt(L,run),pit),Zp(BF,pit),Zp(BN,pit)], c.floor);       // pit floor (behind stairs)
+      const b0N=pt(3,DG.depth-1.5), b0F=pt(L-3,DG.depth-1.5), b1N=pt(3,DG.depth-5.5), b1F=pt(L-3,DG.depth-5.5), bz=pit+1.7;
+      s += quad([Zp(b0N,bz),Zp(b0F,bz),Zp(b1F,bz),Zp(b1N,bz)], c.bench);                      // floating bench seat
+      s += q(b1N,b1F, bz-0.5, bz, c.benchArm);                                                // seat front lip (thin -> floats)
+      for (let i=0;i<N;i++){ const zT=-pd*i/N, zB=-pd*(i+1)/N, dF=run*i/N, dB=run*(i+1)/N;    // FRONT STAIRS
+        s += q(pt(0,dF),pt(L,dF), zT, zB, c.riser);                                           // riser
+        s += quad([Zp(pt(0,dF),zB),Zp(pt(L,dF),zB),Zp(pt(L,dB),zB),Zp(pt(0,dB),zB)], c.tread);// tread
+      }
+      s += quad([Zp(BN,0),Zp(BF,0),Zp(vadd(BF,vmul(f2b,-wt)),0),Zp(vadd(BN,vmul(f2b,-wt)),0)], c.cap);   // WALL THICKNESS: back cap
+      s += quad([Zp(FN,0),Zp(BN,0),Zp(vadd(BN,vmul(along,wt)),0),Zp(vadd(FN,vmul(along,wt)),0)], c.cap); // left end cap
+      s += quad([Zp(FF,0),Zp(BF,0),Zp(vadd(BF,vmul(along,-wt)),0),Zp(vadd(FF,vmul(along,-wt)),0)], c.cap); // right end cap
+      const rz=DG.railH, ent=DG.ent, rL=pt(ent,0), rR=pt(L-ent,0);                            // FRONT metal railing, entrance gap each end
+      s += line(rL,rz,rR,rz,0.9,c.rail) + line(rL,rz-0.6,rR,rz-0.6,0.4,c.railPost);
+      s += line(rL,0,rL,rz,0.8,c.rail) + line(rR,0,rR,rz,0.8,c.rail);
+      for (let i=1;i<8;i++){ const px=pt(ent+(L-2*ent)*i/8,0); s += line(px,0,px,rz,0.5,c.railPost); }
       return s; };
-    const dgR = dgCorners({x:SQRT1_2,y:SQRT1_2}, {x:SQRT1_2,y:-SQRT1_2});     // 1B side (right)
-    const dgL = dgCorners({x:-SQRT1_2,y:SQRT1_2}, {x:-SQRT1_2,y:-SQRT1_2});   // 3B side (left)
     const dugouts = dgDraw(dgR) + dgDraw(dgL);
     EDIT._snap.push(dgR.FN, dgR.FF, dgL.FN, dgL.FF);   // wall-connection vertices
     // FENCE DISTANCE markers, PAINTED ON the outfield wall at each vertex = its straight-line
@@ -645,7 +661,7 @@
       <!-- field-slab thickness (extruded edge) UNDER the ground surface -->
       ${grassLip}
       <!-- foul-territory + backstop grass apron UNDER everything -->
-      <path d="${apron}" fill="${STYLE.colors.grass[1]}"/>
+      <path d="${apron}" fill="${STYLE.colors.grass[1]}" fill-rule="evenodd"/>
       <path d="${grass}" fill="url(#dirtg)"/>
       <path d="${homeCircle}" fill="url(#dirtg)"/>
       <!-- the straddle fan adds the 3ft dirt strip on the FOUL side of each foul line
