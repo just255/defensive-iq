@@ -245,6 +245,10 @@
   const genSide = (bsEnd, pole) => { const p=[{x:bsEnd.x,y:bsEnd.y}];   // straight run backstop-end -> pole, 2 mids
     for (const t of [0.4,0.72]) p.push({x:bsEnd.x+(pole.x-bsEnd.x)*t, y:bsEnd.y+(pole.y-bsEnd.y)*t});
     p.push({x:pole.x,y:pole.y}); return p; };
+  // DUGOUTS (fixed, mirrored 1B/3B): full sunken dugout in foul territory. Authoritative-ish dims
+  // (ft): set back from the foul line, near end from home, run length, depth, sunk pit, roof + rail.
+  const DUGOUT = { setback: 22, nearD: 48, length: 70, depth: 20, pit: 3, roofH: 8.5, railH: 3, fascia: 1.4,
+    col: { floor:'#181d24', wall:'#39424e', wallDark:'#2b333d', roof:'#242a33', roofEdge:'#12161b', rail:'#525d68', bench:'#6b5236', benchFace:'#5a4530' } };
 
   function renderField(cam) {
     const c = CFG[cam.park] || CFG.LL, w = buildWorld(c), P = makeCamera(w, cam);
@@ -433,6 +437,29 @@
     const faces = extrudeWall(EDIT.outfield, H, STYLE.colors.wallCap), caps = '';   // outfield: always yellow cap
     const backstop = extrudeWall(EDIT.backstop, bsH, null);                          // backstop: no cap
     const sideWalls = extrudeWall(EDIT.sideR, sideH, STYLE.colors.slab) + extrudeWall(EDIT.sideL, sideH, STYLE.colors.slab);
+    // DUGOUTS: full sunken dugout in foul territory along each foul line (1B + 3B, mirrored). Pit
+    // (sunk), back + end walls, flat roof + fascia, open front with a low rail, and a bench. The
+    // two front-end corners of each dugout are pushed to EDIT._snap so side walls can connect to them.
+    const DG = DUGOUT, Zp=(p,z)=>({x:p.x,y:p.y,z});
+    const dgCorners = (fdir, fnorm) => { const FN=vadd(vmul(fdir,DG.nearD),vmul(fnorm,DG.setback)), FF=vadd(vmul(fdir,DG.nearD+DG.length),vmul(fnorm,DG.setback));
+      return { FN, FF, BN:vadd(FN,vmul(fnorm,DG.depth)), BF:vadd(FF,vmul(fnorm,DG.depth)) }; };
+    const dgDraw = (C) => { const {FN,FF,BN,BF}=C, pit=-DG.pit, rH=DG.roofH, bh=pit+1.5;
+      const q=(a,b,za,zb,f)=>`<path d="${path([Zp(a,za),Zp(b,za),Zp(b,zb),Zp(a,zb)])} Z" fill="${f}" stroke="none"/>`;
+      const bnF=vadd(BN,vmul(vnorm(vsub(FN,BN)),4)), bfF=vadd(BF,vmul(vnorm(vsub(FF,BF)),4));   // bench 4ft deep off back wall
+      let s='';
+      s += `<path d="${path([Zp(FN,pit),Zp(FF,pit),Zp(BF,pit),Zp(BN,pit)])} Z" fill="${DG.col.floor}"/>`;   // pit floor
+      s += q(BN,BF, pit, rH, DG.col.wall);                                                                   // back wall
+      s += q(FN,BN, pit, rH, DG.col.wallDark) + q(FF,BF, pit, rH, DG.col.wallDark);                          // end walls
+      s += q(bnF,bfF, pit, bh, DG.col.benchFace);                                                            // bench front face
+      s += `<path d="${path([Zp(BN,bh),Zp(BF,bh),Zp(bfF,bh),Zp(bnF,bh)])} Z" fill="${DG.col.bench}"/>`;      // bench seat top
+      s += `<path d="${path([Zp(FN,rH),Zp(FF,rH),Zp(BF,rH),Zp(BN,rH)])} Z" fill="${DG.col.roof}"/>`;         // roof
+      s += q(FN,FF, rH-DG.fascia, rH, DG.col.roofEdge);                                                      // roof fascia (front)
+      s += q(FN,FF, 0, DG.railH, DG.col.rail);                                                               // front rail (open above)
+      return s; };
+    const dgR = dgCorners({x:SQRT1_2,y:SQRT1_2}, {x:SQRT1_2,y:-SQRT1_2});     // 1B side (right)
+    const dgL = dgCorners({x:-SQRT1_2,y:SQRT1_2}, {x:-SQRT1_2,y:-SQRT1_2});   // 3B side (left)
+    const dugouts = dgDraw(dgR) + dgDraw(dgL);
+    EDIT._snap.push(dgR.FN, dgR.FF, dgL.FN, dgL.FF);   // wall-connection vertices
     // FENCE DISTANCE markers, PAINTED ON the outfield wall at each vertex = its straight-line
     // distance from home (apex at 0,0). The text is laid into the wall PLANE: we project the
     // wall's along-tangent and up axes (per foot) at the anchor and use them as an SVG matrix,
@@ -658,6 +685,8 @@
       ${pole(EDIT.outfield[0], nL)}${pole(EDIT.outfield[EDIT.outfield.length-1], nR)}
       <!-- foul-territory side walls (backstop -> foul poles) -->
       ${sideWalls}
+      <!-- dugouts (1B + 3B, foul territory) -->
+      ${dugouts}
       <!-- backstop (foreground, behind home) -->
       ${backstop}
       <!-- scale-reference human billboard (on top) -->
