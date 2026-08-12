@@ -808,6 +808,12 @@
       // BACKSTOP: can't come closer than the regulation min radius from home plate
       if (wk === 'backstop' && EDIT._backstopMin){ const r = Math.hypot(np.x, np.y);
         if (r > 0.01 && r < EDIT._backstopMin){ const s = EDIT._backstopMin/r; np = { x:np.x*s, y:np.y*s }; } }
+      // FOUL POLES (outfield end vertices) ride their foul line: DEPTH only, no lateral drift,
+      // so the foul lines stay straight at +/-45deg. Project onto the pole's ray from home.
+      if (wk === 'outfield' && (i === 0 || i === pts.length-1)){
+        const d = i === 0 ? { x:-SQRT1_2, y:SQRT1_2 } : { x:SQRT1_2, y:SQRT1_2 };   // -45 / +45 foul-line dir
+        const depth = Math.max(30, np.x*d.x + np.y*d.y); np = { x: d.x*depth, y: d.y*depth };
+      }
       const nx=+np.x.toFixed(1), ny=+np.y.toFixed(1);
       pts[i] = (o.h!=null ? { x:nx, y:ny, h:o.h } : { x:nx, y:ny });
       mirror(wk, i);
