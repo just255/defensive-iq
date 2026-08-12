@@ -447,10 +447,18 @@
         const m=[(rx*s).toFixed(3),(ry*s).toFixed(3),(-ux*s).toFixed(3),(-uy*s).toFixed(3),O.x.toFixed(2),O.y.toFixed(2)];
         return `<text transform="matrix(${m.join(',')})" font-size="1" text-anchor="middle" dominant-baseline="central" font-family="Bahnschrift,sans-serif" font-weight="700" fill="${color}" stroke="#0b0b0b" stroke-width="0.05" paint-order="stroke">${txt}</text>`;
       };
-      for (let i=0;i<nO;i++){ const v=of[i], h=v.h ?? H; if (h < 1.5) continue;
+      for (let i=0;i<nO;i++){ const v=of[i], d=''+Math.round(Math.hypot(v.x,v.y));
+        if (i===0 || i===nO-1){   // POLE vertices: the foul-line distance sits UP ON the foul pole (upright)
+          const zc = STYLE.wall.heightFt + (PH - STYLE.wall.heightFt)*0.33;   // above fence-top, on the pole shaft
+          const sp = P({x:v.x,y:v.y,z:zc}), su = P({x:v.x,y:v.y,z:zc+5});      // ~5ft-tall number
+          const fs = Math.max(1.5, Math.hypot(su.x-sp.x, su.y-sp.y));
+          fenceDist += `<text x="${sp.x.toFixed(1)}" y="${sp.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-size="${fs.toFixed(2)}" font-family="Bahnschrift,sans-serif" font-weight="700" fill="#eef3f8" stroke="#0b0b0b" stroke-width="${(fs*0.09).toFixed(2)}" paint-order="stroke">${d}</text>`;
+          continue;
+        }
+        const h=v.h ?? H; if (h < 1.5) continue;
         const A=of[Math.max(0,i-1)], C=of[Math.min(nO-1,i+1)];
         let tx=C.x-A.x, ty=C.y-A.y; const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
-        fenceDist += paintOnWall(v.x, v.y, h*0.5, tx, ty, Math.max(2.5, Math.min(5.5, h*0.62)), ''+Math.round(Math.hypot(v.x,v.y)), '#eef3f8');
+        fenceDist += paintOnWall(v.x, v.y, h*0.5, tx, ty, Math.max(2.5, Math.min(5.5, h*0.62)), d, '#eef3f8');
       }
     }
     // SCALE-REFERENCE billboard: an upright person image, feet on the ground at (bbX,bbY),
