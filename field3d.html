@@ -666,7 +666,7 @@
   // ---- camera state ----
   // wallH/poleH default to the LL regulation (CFG.LL.wallHt/poleHt); the park
   // toggle resets them to that park's regulation. Presets only move the CAMERA.
-  const DEF = { park: 'MLB', pitch: 77, yaw: 0, k: 0.04, zoom: 18, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 32, strafe: 0, camZ: -6, mowOut: 1, mowIn: 0.5, bsH: 4, sideH: 6, grassD: 3, grassLip: 0.25, bbX: -3, bbY: -2, bbH: 7.75, fenceDist: true };   // default = the batter's-eye view   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
+  const DEF = { park: 'MLB', pitch: 77, yaw: 0, k: 0.04, zoom: 2.5, wallH: CFG.MLB.wallHt, poleH: CFG.MLB.poleHt, panX: 0, panY: 0, fwd: 32, strafe: 0, camZ: -6, mowOut: 1, mowIn: 0.5, bsH: 4, sideH: 6, grassD: 3, grassLip: 0.25, bbX: -3, bbY: -2, bbH: 7.75, fenceDist: true };   // default = the batter's-eye view   // mowIn 0.5 = infield stripes half the outfield width by default   // default = MLB (the level all supplied dims are for); LL dims still need to be researched
   const cam = { ...DEF };
   const PRESETS = {
     'Overhead':  { pitch: 8,  yaw: 0, k: 0.0015, zoom: 1,   panX: 0, panY: 0 },
