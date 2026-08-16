@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Defensive IQ — scorebug mock v2</title>
+<style>
+  :root{
+    --sky:#0b1120; --sky2:#0e1730; --panel:#0f1a30;
+    --line:rgba(255,255,255,.10); --ink:#eaf1fb; --muted:#93a6c4; --muted2:#64789a;
+    --accent:#26c565; --flame:#f97316; --gold:#fbbf24; --wrong:#ef4444;
+    --disp:'Bahnschrift','Roboto Condensed','Arial Narrow',system-ui,sans-serif;
+    --body:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#070b16;color:var(--ink);font-family:var(--body);padding:24px;}
+  h1{font-family:var(--disp);text-transform:uppercase;letter-spacing:.04em;font-size:18px;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 22px;max-width:760px;line-height:1.5;}
+  .row{display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;}
+  .cap{font-family:var(--disp);text-transform:uppercase;letter-spacing:.05em;font-size:13px;color:var(--gold);margin:0 0 10px;}
+  .cap small{display:block;color:var(--muted);font-family:var(--body);text-transform:none;letter-spacing:0;font-size:11.5px;margin-top:2px;}
+  .disp{font-family:var(--disp);} .num{font-family:var(--disp);font-variant-numeric:tabular-nums;}
+
+  /* ================= SCOREBUG ================= */
+  .bug{display:inline-flex;align-items:stretch;border-radius:11px;overflow:hidden;
+    background:linear-gradient(180deg,#12203a,#0b1526);border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 10px 26px -12px #000;font-family:var(--disp);}
+  .bug .seg{display:flex;flex-direction:column;justify-content:center;padding:0 11px;border-left:1px solid rgba(255,255,255,.08);}
+  .bug .seg:first-child{border-left:0;}
+
+  /* teams + score */
+  .bug .teams{padding:5px 0;}
+  .bug .tr{display:flex;align-items:center;gap:7px;padding:2px 10px;}
+  .bug .tr .tab{width:4px;height:14px;border-radius:2px;}
+  .bug .tr.away .tab{background:#6ea8ff;} .bug .tr.home .tab{background:var(--flame);}
+  .bug .tr .ab{font-size:14px;letter-spacing:.04em;color:var(--ink);min-width:34px;}
+  .bug .tr .rs{margin-left:auto;font-size:16px;font-variant-numeric:tabular-nums;color:#fff;min-width:16px;text-align:right;}
+
+  /* inning + bases */
+  .bug .inn{align-items:center;gap:3px;}
+  .bug .inn .il{font-size:13px;color:var(--ink);display:flex;align-items:center;gap:2px;}
+  .bug .inn .il .ar{color:var(--accent);font-size:11px;}
+  .bug .inn .il .sup{font-size:8px;color:var(--muted);}
+  .bug .dia{width:26px;height:19px;}
+
+  /* B / S / O light cluster — Balls up to 3, Strikes & Outs up to 2 */
+  .bug .bso{gap:3px;justify-content:center;}
+  .bug .bsrow{display:flex;align-items:center;gap:6px;}
+  .bug .bsrow .bl{font-size:9px;color:var(--muted2);width:8px;letter-spacing:.06em;}
+  .bug .bsrow .pips{display:flex;gap:3px;}
+  .bug .bsrow .p{width:7px;height:7px;border-radius:50%;border:1px solid rgba(255,255,255,.22);}
+  .bug .bsrow.b .p.on{background:var(--gold);border-color:var(--gold);box-shadow:0 0 5px -1px var(--gold);}
+  .bug .bsrow.s .p.on{background:var(--wrong);border-color:var(--wrong);box-shadow:0 0 5px -1px var(--wrong);}
+  .bug .bsrow.o .p.on{background:var(--flame);border-color:var(--flame);box-shadow:0 0 5px -1px var(--flame);}
+
+  /* big (zoomed) variant */
+  .bug.big{border-radius:15px;}
+  .bug.big .seg{padding:0 16px;}
+  .bug.big .tr .ab{font-size:19px;min-width:44px;} .bug.big .tr .rs{font-size:22px;} .bug.big .tr .tab{height:19px;width:5px;}
+  .bug.big .dia{width:40px;height:29px;} .bug.big .inn .il{font-size:17px;}
+  .bug.big .bsrow .bl{font-size:11px;} .bug.big .bsrow .p{width:9px;height:9px;} .bug.big .bso{gap:4px;}
+
+  /* thin IQ bar under the scorebug (holds DEF IQ + streak + gear) */
+  .iqbar{display:flex;align-items:center;gap:9px;padding:5px 12px;border-radius:9px;margin-top:6px;font-family:var(--disp);
+    background:linear-gradient(180deg,rgba(10,17,30,.72),rgba(10,17,30,.5));border:1px solid rgba(255,255,255,.08);}
+  .iqbar .iqn{color:var(--gold);font-size:13px;letter-spacing:.03em;}
+  .iqbar .iqn b{color:var(--muted2);font-size:8px;letter-spacing:.14em;margin-right:5px;font-weight:400;}
+  .iqbar .stk{color:var(--flame);font-size:12px;}
+  .iqbar .sp{flex:1;}
+  .iqbar .gear{font-size:15px;color:var(--muted);}
+  .iqbar.big{padding:8px 15px;} .iqbar.big .iqn{font-size:17px;} .iqbar.big .gear{font-size:18px;}
+
+  .callouts{display:flex;gap:0;margin-top:10px;color:var(--muted2);font-size:11px;font-family:var(--body);}
+  .callouts span{text-align:center;}
+
+  /* ================= PHONE (in context) ================= */
+  .phone{width:320px;height:640px;border-radius:26px;overflow:hidden;position:relative;border:1px solid #223;box-shadow:0 20px 50px -20px #000;background:var(--sky);}
+  .field{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(80% 55% at 50% 12%,rgba(150,190,220,.10),transparent 60%),var(--sky);}
+  .field svg{width:100%;height:auto;}
+  .topwrap{position:absolute;top:8px;left:8px;right:8px;}
+  .topwrap .bug{display:flex;width:100%;}
+  .topwrap .bug .teams{flex:1.2;} .topwrap .bug .inn{flex:1;} .topwrap .bug .bso{flex:1.1;}
+  .ovl{position:absolute;left:8px;right:8px;bottom:8px;border-radius:15px;padding:11px 13px 13px;
+    background:linear-gradient(180deg,rgba(12,20,35,.80),rgba(12,20,35,.95));backdrop-filter:blur(4px);
+    border:1px solid rgba(251,191,36,.26);box-shadow:0 -8px 30px -14px #000;}
+  .call{text-align:center;font-family:var(--disp);text-transform:uppercase;letter-spacing:.04em;font-size:14px;color:var(--gold);margin-bottom:9px;text-wrap:balance;}
+  .brief{list-style:none;margin:0 0 11px;padding:0;display:flex;flex-direction:column;gap:8px;}
+  .brief li{font-size:12px;line-height:1.42;color:var(--muted);}
+  .brief .lab{font-family:var(--disp);text-transform:uppercase;letter-spacing:.07em;font-size:10px;margin-right:5px;}
+  .brief .s .lab{color:var(--muted2);} .brief .p .lab{color:var(--gold);} .brief .r .lab{color:var(--accent);}
+  .play{width:100%;border:0;padding:12px;border-radius:11px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.05em;font-size:15px;background:linear-gradient(180deg,#34d374,var(--accent));color:#05210f;}
+</style>
+</head>
+<body>
+  <h1>Defensive IQ — scorebug v2 (corrected B/S/O + IQ moved to a thin bar)</h1>
+  <p class="sub">Scorebug now shows pure baseball status: team + score, inning with bases diamond, and a proper B/S/O light cluster — Balls up to 3, Strikes and Outs up to 2. The Defensive IQ + streak drop to a thin bar under the scorebug that also holds the ⚙ settings (position filter / mode).</p>
+
+  <div class="row">
+    <div>
+      <div class="cap">Scorebug — zoomed <small>runner on 2nd · 2 balls, 2 strikes, 1 out</small></div>
+      <div class="bug big" id="bugBig"></div>
+      <div class="iqbar big" style="max-width:none">
+        <span class="iqn"><b>DEF IQ</b>120</span><span class="stk">0🔥</span><span class="sp"></span><span class="gear">⚙</span>
+      </div>
+      <div class="callouts" style="width:560px">
+        <span style="flex:1.4">Teams &amp; score</span>
+        <span style="flex:1.1">Inning + bases<br>(2nd lit)</span>
+        <span style="flex:1.2">B ●●○ (0–3)<br>S ●●&nbsp; O ●○ (0–2)</span>
+      </div>
+
+      <div class="cap" style="margin-top:30px">Compact (phone size)</div>
+      <div class="bug" id="bugSmall"></div>
+    </div>
+
+    <div>
+      <div class="cap">On the field <small>scorebug + thin IQ/⚙ bar float on top</small></div>
+      <div class="phone">
+        <div class="field" id="field"></div>
+        <div class="topwrap">
+          <div class="bug" id="bugPhone"></div>
+          <div class="iqbar">
+            <span class="iqn"><b>DEF IQ</b>120</span><span class="stk">0🔥</span><span class="sp"></span><span class="gear">⚙</span>
+          </div>
+        </div>
+        <div class="ovl">
+          <div class="call">1 Out · Runner on 2nd · Stop the Run</div>
+          <ul class="brief">
+            <li class="s"><span class="lab">Situation</span>Runner on 2nd, in scoring position — a hit to left likely scores him.</li>
+            <li class="p"><span class="lab">Priority</span>First, try to throw the run out at the plate. If not, hold the hitter to a single.</li>
+            <li class="r"><span class="lab">Your read</span>Ball to left, throw's coming home — what's the third baseman's job?</li>
+          </ul>
+          <button class="play">▶ Play the ball</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  function diamond(on){
+    const base=(cx,cy,lit)=>`<rect x="${cx-2.6}" y="${cy-2.6}" width="5.2" height="5.2" transform="rotate(45 ${cx} ${cy})" ${lit?'fill="#fbbf24" stroke="#fbbf24"':'fill="none" stroke="#9fb3cf"'} stroke-width="1"/>`;
+    return `<svg class="dia" viewBox="0 0 22 16" preserveAspectRatio="xMidYMid meet">
+      ${base(11,4.5,on.includes('2B'))}${base(17.5,10,on.includes('1B'))}${base(4.5,10,on.includes('3B'))}
+    </svg>`;
+  }
+  // pips(total, on, cls) — a row of `total` slots with the first `on` filled.
+  function pips(total,on,cls){
+    let s='';
+    for(let i=0;i<total;i++) s+=`<i class="p ${i<on?'on':''}"></i>`;
+    return `<div class="bsrow ${cls}"><span class="bl">${cls.toUpperCase()}</span><span class="pips">${s}</span></div>`;
+  }
+  function bug(g){ // g = {away,home,inn,arrow,bases,balls,strikes,outs}
+    return `
+      <div class="seg teams">
+        <div class="tr away"><span class="tab"></span><span class="ab">AWY</span><span class="rs">${g.away}</span></div>
+        <div class="tr home"><span class="tab"></span><span class="ab">HOM</span><span class="rs">${g.home}</span></div>
+      </div>
+      <div class="seg inn">
+        <div class="il"><span class="ar">${g.arrow}</span>${g.inn}<span class="sup">TH</span></div>
+        ${diamond(g.bases)}
+      </div>
+      <div class="seg bso">
+        ${pips(3,g.balls,'b')}
+        ${pips(2,g.strikes,'s')}
+        ${pips(2,g.outs,'o')}
+      </div>`;
+  }
+  const G = {away:3,home:3,inn:6,arrow:'▲',bases:['2B'],balls:2,strikes:2,outs:1};
+  document.getElementById('bugBig').innerHTML = bug(G);
+  document.getElementById('bugSmall').innerHTML = bug(G);
+  document.getElementById('bugPhone').innerHTML = bug(G);
+
+  document.getElementById('field').innerHTML = `<svg viewBox="0 0 100 118" preserveAspectRatio="xMidYMid meet">
+    <defs><radialGradient id="g" cx="50%" cy="18%" r="90%"><stop offset="0%" stop-color="#27603f"/><stop offset="60%" stop-color="#1a4632"/><stop offset="100%" stop-color="#12331f"/></radialGradient>
+    <linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#b96c40"/><stop offset="100%" stop-color="#7d4526"/></linearGradient></defs>
+    <path d="M50 98 L10 58 L15 40 L31 24 L52 19 L72 27 L87 47 L90 58 Z" fill="url(#g)"/>
+    <path d="M10 58 L15 40 L31 24 L52 19 L72 27 L87 47 L90 58" fill="none" stroke="#0a1f14" stroke-width="2.2" stroke-linejoin="round"/>
+    <polygon points="50,98 77,71 50,44 23,71" fill="url(#c)"/><polygon points="50,90 70,71 50,52 30,71" fill="url(#g)"/>
+    <circle cx="50" cy="71" r="4.6" fill="url(#c)"/>
+    <line x1="50" y1="98" x2="90" y2="58" stroke="#e8eef5" stroke-width=".6" opacity=".8"/><line x1="50" y1="98" x2="10" y2="58" stroke="#e8eef5" stroke-width=".6" opacity=".8"/>
+    ${[['CF',52,29],['LF',28,38],['RF',74,38],['SS',38,56],['2B',62,56],['1B',72,66],['P',50,71],['C',50,106]].map(([k,x,y])=>`<circle cx="${x}" cy="${y}" r="2.4" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5" opacity=".6"/><text x="${x}" y="${y+0.9}" text-anchor="middle" font-size="2.4" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`).join('')}
+    <circle cx="27" cy="66" r="3" fill="#f97316" stroke="#2a1503" stroke-width=".6"/><text x="27" y="66.9" text-anchor="middle" font-size="2.6" fill="#1a0e02" font-family="Bahnschrift,sans-serif">3B</text>
+  </svg>`;
+</script>
+</body>
+</html>

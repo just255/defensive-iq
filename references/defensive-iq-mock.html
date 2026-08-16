@@ -1,0 +1,1526 @@
+<title>Defensive IQ — Field the Play</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<style>
+  :root {
+    color-scheme: dark;
+    --sky: #0b1120;
+    --sky-2: #0e1730;
+    --panel: #0f1a30;
+    --panel-2: #14233f;
+    --line-soft: rgba(255,255,255,.08);
+    --ink: #eaf1fb;
+    --muted: #93a6c4;
+    --muted-2: #64789a;
+    --turf: #1a4632;
+    --turf-2: #23583d;
+    --clay: #a86038;
+    --clay-2: #7d4526;
+    --chalk: #e8eef5;
+    --accent: #26c565;   /* turf green — correct / positive */
+    --flame: #f97316;    /* your position */
+    --gold: #fbbf24;     /* bases, score */
+    --wrong: #ef4444;
+    --font-display: 'Bahnschrift','Roboto Condensed','Arial Narrow',system-ui,sans-serif;
+    --font-body: system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--font-body);
+    color: var(--ink);
+    background:
+      radial-gradient(120% 60% at 50% -8%, rgba(56,110,80,.28), transparent 60%),
+      radial-gradient(90% 50% at 50% 0%, rgba(120,160,200,.10), transparent 55%),
+      linear-gradient(180deg, var(--sky-2), var(--sky));
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* The field fills the whole stage; the HUD floats on top of it. */
+  .stage {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    height: 100dvh;
+    margin: 0 auto;
+    overflow: hidden;
+    background: var(--sky);
+  }
+
+  .disp { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .04em; }
+  .num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+
+  /* ===== Top HUD: scorebug + gear button, floated on the field ===== */
+  .hud-top { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 6; display: flex; align-items: stretch; gap: 6px; }
+  .hud-top .gearbtn { flex: 0 0 auto; width: 40px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; cursor: pointer;
+    background: linear-gradient(180deg, rgba(18,32,58,.9), rgba(11,21,38,.84)); backdrop-filter: blur(5px);
+    color: var(--muted); font-size: 17px; display: grid; place-items: center; }
+  .hud-top .gearbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- TV-style scorebug ---- */
+  .scorebug { flex: 1; display: flex; align-items: stretch; border-radius: 12px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(18,32,58,.92), rgba(11,21,38,.86)); backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,.12); box-shadow: 0 8px 22px -12px rgba(0,0,0,.8);
+    font-family: var(--font-display); }
+  .scorebug .seg { display: flex; flex-direction: column; justify-content: center; padding: 4px 10px; border-left: 1px solid rgba(255,255,255,.08); }
+  .scorebug .seg:first-child { border-left: 0; }
+  .scorebug .teams { padding: 4px 0; }
+  .scorebug .tr { display: flex; align-items: center; gap: 7px; padding: 1px 10px; }
+  .scorebug .tr .tab { width: 4px; height: 13px; border-radius: 2px; }
+  .scorebug .tr.away .tab { background: #6ea8ff; }
+  .scorebug .tr.home .tab { background: var(--flame); }
+  .scorebug .tr .ab { font-size: 13px; color: var(--ink); min-width: 32px; letter-spacing: .04em; }
+  .scorebug .tr .rs { margin-left: auto; font-size: 15px; font-variant-numeric: tabular-nums; color: #fff; min-width: 15px; text-align: right; }
+  .scorebug .inn { align-items: center; gap: 2px; }
+  .scorebug .inn .il { display: flex; align-items: center; gap: 3px; font-size: 13px; color: var(--ink); }
+  .scorebug .inn .il .ar { color: var(--accent); font-size: 11px; }
+  .scorebug .dia { width: 26px; height: 18px; }
+  .scorebug .bso { gap: 2px; justify-content: center; flex: 1; }
+  .scorebug .bsrow { display: flex; align-items: center; gap: 5px; }
+  .scorebug .bsrow .bl { font-size: 9px; color: var(--muted-2); width: 8px; }
+  .scorebug .bsrow .pips { display: flex; gap: 3px; }
+  .scorebug .bsrow .p { width: 7px; height: 7px; border-radius: 50%; border: 1px solid rgba(255,255,255,.22); }
+  .scorebug .bsrow.b .p.on { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 5px -1px var(--gold); }
+  .scorebug .bsrow.s .p.on { background: var(--wrong); border-color: var(--wrong); box-shadow: 0 0 5px -1px var(--wrong); }
+  .scorebug .bsrow.o .p.on { background: var(--flame); border-color: var(--flame); box-shadow: 0 0 5px -1px var(--flame); }
+
+  /* ---- IQ segment inside the scorebug (DEF IQ + streak + play progress) ---- */
+  .scorebug .iq { align-items: center; justify-content: center; text-align: center;
+    background: linear-gradient(180deg, rgba(251,191,36,.13), rgba(251,191,36,.03)); }
+  .scorebug .iq .iqcell { display: flex; align-items: baseline; gap: 5px; }
+  .scorebug .iq .iqcell b { font-size: 8px; letter-spacing: .12em; color: var(--muted-2); font-weight: 400; }
+  .scorebug .iq .iqn { font-size: 17px; color: var(--gold); line-height: 1; }
+  .scorebug .iq .iqsub { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .scorebug .iq .streak { font-size: 11px; color: var(--flame); }
+  .scorebug .iq .prog { font-size: 8.5px; letter-spacing: .05em; color: var(--muted-2); }
+
+  /* ===== Gear popover: drill-position filter + Quiz/Reference mode ===== */
+  .gearmenu { position: absolute; top: 92px; right: 8px; z-index: 8; width: 210px; padding: 11px;
+    border-radius: 13px; border: 1px solid var(--line-soft);
+    background: linear-gradient(180deg, rgba(16,26,48,.99), rgba(12,20,36,.99)); box-shadow: 0 18px 40px -16px rgba(0,0,0,.9);
+    animation: rise .16s ease-out; }
+  .gearmenu[hidden] { display: none; }
+  .gearmenu .gm-label { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .12em; font-size: 9px; color: var(--muted-2); margin: 0 0 5px 2px; }
+  .gearmenu .gm-label.mt { margin-top: 11px; }
+  .modes, .posbar { display: flex; gap: 5px; }
+  .modes button, .posbar button {
+    flex: 1; border: 1px solid var(--line-soft); cursor: pointer; padding: 7px 0; border-radius: 9px;
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: .05em; font-size: 12px;
+    background: transparent; color: var(--muted); transition: background .15s, color .15s;
+  }
+  .modes button[aria-pressed="true"] { background: var(--accent); color: #05210f; border-color: transparent; }
+  .posbar button[aria-pressed="true"] { background: var(--flame); color: #1a0e02; border-color: transparent; }
+  .modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .posbar button:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+
+  /* ===== Bottom HUD: coaching panel / read bar / feedback, floated on the field ===== */
+  .hud-bottom { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; }
+  .hud-bottom > * { max-height: calc(100dvh - 118px); overflow-y: auto; overscroll-behavior: contain; }
+  /* translucent so the field reads through the panels */
+  .hud-bottom .prepitch { background: linear-gradient(180deg, rgba(14,22,38,.86), rgba(12,20,35,.96)); backdrop-filter: blur(5px); }
+  .hud-bottom .feedback { background: linear-gradient(180deg, rgba(14,22,38,.9), rgba(12,20,35,.97)); backdrop-filter: blur(5px); }
+
+  /* position badge + premise line inside the coaching panel */
+  .pretop { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .posbadge { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+    color: #1a0e02; background: radial-gradient(circle at 35% 30%, #ffb56b, var(--flame));
+    box-shadow: 0 0 16px -4px rgba(249,115,22,.7); font-family: var(--font-display); font-size: 15px; }
+  .pretop .callline { margin-bottom: 0; text-align: left; flex: 1; }
+  .premise { font-size: 12.5px; color: var(--ink); font-weight: 600; line-height: 1.3; margin-bottom: 10px; text-wrap: balance; }
+  /* collapse the coaching panel to peek at the field (keeps call + Play) */
+  .pretop .collapse { flex: 0 0 auto; border: 0; background: transparent; color: var(--muted); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px 4px; transition: transform .2s; }
+  .pretop .collapse:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .prepitch.collapsed .collapse { transform: rotate(180deg); }
+  .prepitch.collapsed .premise,
+  .prepitch.collapsed .brief,
+  .prepitch.collapsed .diffrow { display: none; }
+  .prepitch.collapsed .pretop { margin-bottom: 10px; }
+
+  /* ---- Field: show the WHOLE field (no crop), as large as the width allows
+     for easy tapping, anchored near the top with a padding gap under the
+     scorebug — the natural margin outside the outfield wall gives side padding,
+     and there's room above for the future editable outfield wall. ---- */
+  .fieldwrap { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(80% 55% at 50% 34%, rgba(150,190,220,.08), transparent 62%), var(--sky); }
+  /* perspective tilt: pivots near home so the infield foreground enlarges and
+     the outfield foreshortens/recedes (the "LL tilted" look). Field + actors
+     live in one SVG, so they tilt together and stay aligned. */
+  svg.field { position: absolute; top: var(--field-top, 70px); left: 50%; width: 100%; height: auto; max-height: none;
+    transform: translateX(-50%) perspective(940px) rotateX(18deg); transform-origin: 50% 78%; }
+
+  .prompt { text-align: center; font-family: var(--font-display); text-transform: uppercase; letter-spacing: .1em; font-size: 12px; color: var(--muted); margin: 12px 0 8px; }
+
+  /* ---- Pre-pitch panel: read the situation before the play ---- */
+  .prepitch {
+    border: 1px solid var(--line-soft); border-radius: 16px; padding: 14px 15px 15px;
+    background: linear-gradient(180deg, rgba(251,191,36,.06), transparent 62%), var(--panel);
+  }
+  .callline {
+    text-align: center; font-family: var(--font-display); text-transform: uppercase;
+    letter-spacing: .05em; font-size: 17px; line-height: 1.18; color: var(--gold);
+    text-wrap: balance; margin-bottom: 12px;
+  }
+  .brief { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+  .brief li { font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+  .brief .lab {
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: .08em;
+    font-size: 11px; margin-right: 6px; white-space: nowrap;
+  }
+  .brief .bl-s .lab { color: var(--muted-2); }
+  .brief .bl-p .lab { color: var(--gold); }
+  .brief .bl-r .lab { color: var(--accent); }
+  .brief li b { color: var(--ink); font-weight: 700; }
+  .diffrow { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+  .difflabel { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); margin-right: 2px; }
+  .diffchip {
+    flex: 1; border: 1px solid var(--line-soft); cursor: pointer; padding: 7px; border-radius: 9px;
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: .05em; font-size: 12px;
+    background: transparent; color: var(--muted); transition: background .15s, color .15s;
+  }
+  .diffchip[aria-pressed="true"] { background: var(--flame); color: #1a0e02; border-color: transparent; }
+  .diffchip:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+  .playbtn {
+    width: 100%; border: 0; cursor: pointer; padding: 15px; border-radius: 13px;
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: .06em; font-size: 18px;
+    background: linear-gradient(180deg, #34d374, var(--accent)); color: #05210f;
+    box-shadow: 0 12px 26px -12px rgba(38,197,101,.9);
+  }
+  .playbtn:active { transform: scale(.99); }
+  .playbtn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+  /* ---- The read: countdown while the ball is live ---- */
+  .readui { text-align: center; }
+  .readprompt {
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: .09em;
+    font-size: 15px; color: var(--flame); margin-bottom: 9px;
+  }
+  .readbar { height: 9px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .readfill { height: 100%; width: 100%; border-radius: 6px; background: var(--accent); }
+
+  /* ---- Feedback ---- */
+  .feedback { margin-top: 12px; border-radius: 16px; padding: 14px; border: 1px solid var(--line-soft); background: var(--panel);
+    display: none; }
+  .feedback.show { display: block; animation: rise .28s ease-out; }
+  .feedback .verdict { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .05em; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+  .feedback.good .verdict { color: var(--accent); }
+  .feedback.bad .verdict { color: var(--wrong); }
+  .feedback .result { margin-top: 6px; color: var(--ink); font-size: 15px; line-height: 1.45; }
+  .feedback .why { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+  .feedback .why::before { content: 'Your job — '; color: var(--accent); font-weight: 700; }
+
+  /* glossary — tap a term for a kid-friendly hint */
+  .term { color: var(--accent); border-bottom: 1px dashed rgba(38,197,101,.65); cursor: pointer; }
+  .term:active { background: rgba(38,197,101,.16); }
+  .glosspop { position: fixed; z-index: 100; display: none; max-width: 280px; padding: 11px 13px;
+    border-radius: 12px; border: 1px solid rgba(38,197,101,.35); background: #10213b;
+    box-shadow: 0 14px 34px -10px rgba(0,0,0,.85); }
+  .glosspop .gt { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .05em; font-size: 12px; color: var(--accent); margin-bottom: 3px; }
+  .glosspop .gd { font-size: 13px; line-height: 1.45; color: var(--ink); }
+  .feedback .next {
+    margin-top: 14px; width: 100%; border: 0; cursor: pointer; padding: 14px; border-radius: 12px;
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: .06em; font-size: 17px;
+    background: var(--accent); color: #05210f;
+  }
+  .feedback .next:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .feedback .fbrow { display: flex; gap: 8px; margin-top: 14px; }
+  .feedback .fbrow .next { margin-top: 0; flex: 2; }
+  .feedback .replay {
+    flex: 1; border: 1px solid var(--line-soft); cursor: pointer; padding: 14px; border-radius: 12px;
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: .06em; font-size: 15px;
+    background: var(--field-700, #1b2742); color: var(--ink);
+  }
+  .feedback .replay:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- Reference panel ---- */
+  .refpanel { margin-top: 12px; border-radius: 16px; border: 1px solid var(--line-soft); background: var(--panel); overflow: hidden; }
+  .refpanel h3 { margin: 0; padding: 12px 14px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: .08em; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line-soft); }
+  .refrow { display: flex; gap: 12px; padding: 10px 14px; font-size: 14px; }
+  .refrow + .refrow { border-top: 1px solid rgba(255,255,255,.04); }
+  .refrow .rp { flex: 0 0 34px; font-family: var(--font-display); color: var(--flame); }
+  .refrow .rj { color: var(--ink); }
+  .refrow.you .rj { color: var(--flame); font-weight: 600; }
+
+  .foot { margin-top: 18px; text-align: center; font-size: 11px; color: var(--muted-2); line-height: 1.5; }
+
+  /* dot pulse */
+  @keyframes ping { 0% { transform: scale(1); opacity: .8; } 70%,100% { transform: scale(2.1); opacity: 0; } }
+  @keyframes rise { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes dash { to { stroke-dashoffset: 0; } }
+  @keyframes shake { 10%,90%{transform:translateX(-1px)} 30%,70%{transform:translateX(2px)} 50%{transform:translateX(-2px)} }
+  .shake { animation: shake .35s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-ring { display: none; }
+    .ballpath { stroke-dashoffset: 0 !important; animation: none !important; }
+    .feedback.show, .shake { animation: none; }
+  }
+</style>
+
+<div class="stage">
+  <div class="fieldwrap">
+    <svg class="field" id="field" viewBox="0 0 100 118" role="img" aria-label="Baseball field">
+      <!-- pretty world-space field, generated by fieldGraphics() and injected
+           here at init; the interactive actors below sit on top of it -->
+      <g id="fieldgfx"></g>
+
+      <!-- bases -->
+      <g id="bases"></g>
+      <!-- ball path -->
+      <line id="balltail" x1="0" y1="0" x2="0" y2="0" stroke="#fff" stroke-width="1.3" stroke-linecap="round" opacity="0"/>
+      <circle id="ball" r="1.4" fill="#fff" style="display:none"/>
+
+      <!-- fielders -->
+      <g id="fielders"></g>
+      <!-- option targets -->
+      <g id="targets"></g>
+      <!-- runners -->
+      <g id="runners"></g>
+      <!-- you marker -->
+      <g id="you"></g>
+    </svg>
+  </div><!-- /.fieldwrap -->
+
+  <div class="hud-top">
+    <div class="scorebug" id="scorebug"></div>
+    <button class="gearbtn" id="gearBtn" aria-label="Settings" aria-expanded="false">⚙</button>
+  </div>
+
+  <div class="gearmenu" id="gearmenu" hidden>
+    <div class="gm-label">Drill position</div>
+    <div class="posbar" id="posbar" role="tablist" aria-label="Position"></div>
+    <div class="gm-label mt">Mode</div>
+    <div class="modes" role="tablist" aria-label="Mode">
+      <button id="mQuiz" aria-pressed="true">Quiz</button>
+      <button id="mRef" aria-pressed="false">Reference</button>
+    </div>
+  </div>
+
+  <div class="hud-bottom">
+    <div id="quizUI">
+      <div class="prepitch" id="prepitch">
+        <div class="pretop">
+          <span class="posbadge" id="posbadge">3B</span>
+          <div class="callline" id="callline"></div>
+          <button class="collapse" id="collapseBtn" aria-label="Collapse to see the field" aria-expanded="true">▾</button>
+        </div>
+        <div class="premise" id="premise"></div>
+        <ul class="brief" id="brief"></ul>
+        <div class="diffrow">
+          <span class="difflabel">Play speed</span>
+          <button class="diffchip" id="diffRookie" aria-pressed="true">Rookie</button>
+          <button class="diffchip" id="diffReal" aria-pressed="false">Real</button>
+        </div>
+        <button class="playbtn" id="playbtn">▶&nbsp; Play the ball</button>
+      </div>
+      <div class="readui" id="readUI" style="display:none">
+        <div class="readprompt" id="readprompt">Read it — get to your spot!</div>
+        <div class="readbar"><div class="readfill" id="readfill"></div></div>
+      </div>
+    </div>
+
+    <div class="feedback" id="feedback">
+      <div class="verdict" id="verdict"></div>
+      <div class="result" id="result"></div>
+      <div class="why" id="why"></div>
+      <div class="fbrow">
+        <button class="replay" id="replay">↻ Replay</button>
+        <button class="next" id="next">Next play ▸</button>
+      </div>
+    </div>
+
+    <div class="refpanel" id="refpanel" style="display:none">
+      <h3>Everyone's job on this play</h3>
+      <div id="reflist"></div>
+    </div>
+  </div>
+</div><!-- /.stage -->
+
+<script>
+(function () {
+  // Guarantee a mobile viewport meta in <head>. When this file is published as
+  // an artifact it's wrapped in an outer <head>/<body>, which can strip or
+  // misplace our literal <meta viewport> into the body where it's ignored —
+  // leaving the phone at a wide default layout viewport (everything tiny). Set
+  // it from JS so it always takes effect.
+  (function ensureViewport() {
+    let m = document.querySelector('meta[name="viewport"]');
+    if (!m) { m = document.createElement('meta'); m.setAttribute('name', 'viewport'); document.head.appendChild(m); }
+    m.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  })();
+
+  // Fielder home coordinates on the 100x118 field.
+  const POS = {
+    P:  [50, 71], C: [50, 106], '1B': [72, 66], '2B': [62, 56],
+    SS: [38, 56], '3B': [27, 66], LF: [28, 38], CF: [52, 29], RF: [74, 38],
+  };
+  const BASES = { '1B': [77, 71], '2B': [50, 44], '3B': [23, 71], H: [50, 98] };
+
+  const SCENARIOS = [
+    {
+      pos: '3B',
+      game: { inning: 3, half: 'top', away: 2, home: 3, balls: 1, strikes: 1, outs: 0 },
+      sit: 'No outs · Runner on 1st',
+      play: 'Batter squares to bunt down the third-base line.',
+      ball: [38, 86],
+      runners: ['1B'],
+      prompt: 'What’s your job?',
+      options: [
+        { n: 1, label: 'Charge & field it', spot: [40, 87], correct: true },
+        { n: 2, label: 'Hold and cover 3rd', spot: [23, 71] },
+        { n: 3, label: 'Back up second', spot: [50, 44] },
+      ],
+      why: 'On a bunt you attack the ball — get it and throw to first. The shortstop rotates behind you to cover third.',
+      resolve: {
+        1: { ball: [[38, 86], [77, 71]], runnerTo: '2B', verdict: 'Fielded clean and thrown to first — the batter’s out. The runner takes second, but you got your out.' },
+        2: { ball: [[38, 86], [31, 80]], runnerTo: '2B', verdict: 'You retreat to cover third — but nobody charges the bunt. It dies in the grass: batter safe, runner to second.' },
+        3: { ball: [[38, 86], [33, 82]], runnerTo: '2B', verdict: 'You drift to back up second with no throw coming. The bunt just sits there — everybody’s safe, first and second.' },
+      },
+      reference: [
+        ['3B', 'Charge and field the bunt'],
+        ['P', 'Charge, help field, or cover a base'],
+        ['1B', 'Charge; catcher directs the throw'],
+        ['SS', 'Rotate to cover third'],
+        ['2B', 'Cover first base'],
+      ],
+    },
+    {
+      pos: 'LF',
+      game: { inning: 5, half: 'bottom', away: 4, home: 4, balls: 2, strikes: 0, outs: 1 },
+      sit: '1 out · Runner on 1st',
+      play: 'Line-drive single hit to center field.',
+      ball: [48, 30],
+      runners: ['1B'],
+      prompt: 'Where do you go?',
+      options: [
+        { n: 1, label: 'Back up center field', spot: [48, 19], correct: true },
+        { n: 2, label: 'Run in as cutoff', spot: [46, 52] },
+        { n: 3, label: 'Sprint to cover 3rd', spot: [23, 71] },
+      ],
+      why: 'You back up center on every ball hit there. If it skips past, you’re there to keep the runner from an extra base.',
+      resolve: {
+        1: { ball: [[48, 30], [50, 52]], runnerTo: '2B', verdict: 'Center fields it clean and hits the cutoff — held to a single, runner stops at second. You were backing up in case it got by.' },
+        2: { ball: [[48, 30], [50, 19]], runnerTo: 'H', verdict: 'You run in to cut a throw that isn’t yours, leaving center unbacked. It skips past and rolls to the wall — the runner scores from first.' },
+        3: { ball: [[48, 30], [50, 19]], runnerTo: 'H', verdict: 'Third is already covered — you sprinted the wrong way. The ball gets past center with nobody backing up, and the run scores.' },
+      },
+      reference: [
+        ['LF', 'Back up center field'],
+        ['CF', 'Field the ball, hit the cutoff'],
+        ['SS', 'Cutoff for the throw to third'],
+        ['3B', 'Cover third for the runner'],
+        ['2B', 'Cover second'],
+      ],
+    },
+    {
+      pos: 'RF',
+      game: { inning: 7, half: 'top', away: 3, home: 2, balls: 0, strikes: 2, outs: 2 },
+      sit: '2 outs · Runner on 2nd',
+      play: 'Base hit to right — the runner is digging for home.',
+      ball: [70, 34],
+      runners: ['2B'],
+      prompt: 'What’s your play?',
+      options: [
+        { n: 1, label: 'Hit the cutoff man', spot: [60, 56], correct: true },
+        { n: 2, label: 'Throw home on the fly', spot: [50, 98] },
+        { n: 3, label: 'Run it in yourself', spot: [66, 45] },
+      ],
+      why: 'Charge, field it clean, and throw low to the cutoff (your 2nd baseman lined up). He reads the runner and relays home.',
+      resolve: {
+        1: { ball: [[70, 34], [60, 56], [50, 96]], runnerTo: 'H', verdict: 'Fielded and fired to the cutoff — he reads it and relays home. OUT at the plate. Inning over!' },
+        2: { ball: [[70, 34], [52, 95]], runnerTo: 'H', verdict: 'You airmail it home with no cutoff — late and offline. The run scores, and the batter cruises into second.' },
+        3: { ball: [[70, 34], [68, 50]], runnerTo: 'H', verdict: 'You jog it back in instead of throwing — the run scores standing up and the hitter’s on second before you look up.' },
+      },
+      reference: [
+        ['RF', 'Charge, throw to the cutoff'],
+        ['2B', 'Line up as the cutoff man'],
+        ['1B', 'Trail the cutoff / cover first'],
+        ['C', 'Cover home for the play'],
+        ['P', 'Back up home plate'],
+      ],
+    },
+
+    {
+      pos: '3B',
+      game: { inning: 6, half: 'top', away: 3, home: 3, balls: 1, strikes: 2, outs: 1 },
+      sit: '1 out · Runner on 2nd',
+      play: 'Base hit to LEFT — the runner rounds third to score.',
+      ball: [30, 40],
+      runners: ['2B'],
+      prompt: 'What’s your job?',
+      options: [
+        { n: 1, label: 'Line up as the cutoff (throw home)', spot: [40, 82], correct: true },
+        { n: 2, label: 'Cover third base', spot: [23, 71] },
+        { n: 3, label: 'Back up the catcher', spot: [50, 106] },
+      ],
+      why: 'Ball to left or center, you’re the cut on the throw home. Line up ~45 ft up the line, hands high — the catcher tells you cut or let it go.',
+      resolve: {
+        1: { ball: [[30, 40], [40, 82], [50, 96]], runnerTo: 'H', verdict: 'You line up the cut — read the catcher and redirect to hold the hitter at first. Textbook.' },
+        2: { ball: [[30, 40], [50, 96]], runnerTo: 'H', verdict: 'You drift to third — but nobody’s cutting the throw. It one‑hops through to the plate and the hitter takes second behind it.' },
+        3: { ball: [[30, 40], [50, 96]], runnerTo: 'H', verdict: 'You run behind the plate with no cut man out front. The throw sails through and the hitter cruises into second.' },
+      },
+      reference: [
+        ['3B', 'Cut the throw home (ball to LF/CF)'],
+        ['C', 'Cover the plate, call the cut'],
+        ['SS', 'Cover third behind you'],
+        ['LF', 'Field, throw to the cutoff'],
+        ['P', 'Back up home'],
+      ],
+    },
+
+    {
+      pos: '3B',
+      game: { inning: 6, half: 'top', away: 3, home: 3, balls: 0, strikes: 0, outs: 1 },
+      sit: '1 out · Runner on 2nd',
+      play: 'Base hit to RIGHT — the runner races around to score.',
+      ball: [72, 40],
+      runners: ['2B'],
+      prompt: 'What’s your job?',
+      options: [
+        { n: 1, label: 'Cover third base', spot: [23, 71], correct: true },
+        { n: 2, label: 'Line up as the cutoff (throw home)', spot: [60, 82] },
+        { n: 3, label: 'Back up second', spot: [50, 44] },
+      ],
+      why: 'Ball to right field, the FIRST baseman is the cut on the throw home — so your job flips to covering third for the batter trying to stretch.',
+      resolve: {
+        1: { ball: [[72, 40], [60, 82], [50, 96]], runnerTo: 'H', verdict: 'The 1B takes the cut home; you’ve got third. The hitter can’t advance — held right there.' },
+        2: { ball: [[72, 40], [50, 96]], runnerTo: 'H', verdict: 'Now two players cut the same throw and nobody’s at third — the batter walks into third standing up.' },
+        3: { ball: [[72, 40], [62, 82], [50, 96]], runnerTo: 'H', verdict: 'The 1B cuts it home fine — but you left third empty backing up second. The hitter takes third without a throw.' },
+      },
+      reference: [
+        ['1B', 'Cut the throw home (ball to RF)'],
+        ['3B', 'Cover third'],
+        ['SS', 'Cover second / relay'],
+        ['RF', 'Throw to the cutoff'],
+        ['C', 'Cover the plate'],
+      ],
+    },
+
+    {
+      pos: 'LF',
+      game: { inning: 3, half: 'bottom', away: 2, home: 1, balls: 2, strikes: 1, outs: 0 },
+      sit: 'No outs · Runner on 1st',
+      play: 'Clean single to left — the runner is going first‑to‑third.',
+      ball: [30, 40],
+      runners: ['1B'],
+      prompt: 'What do you do with it?',
+      options: [
+        { n: 1, label: 'Hit the cutoff (SS) to third', spot: [42, 50], correct: true },
+        { n: 2, label: 'Throw home', spot: [50, 96] },
+        { n: 3, label: 'Throw behind him to second', spot: [50, 44] },
+      ],
+      why: 'Runner going first‑to‑third — you throw to third, always through the shortstop cutoff. Low and on a line so he can cut it or let it go.',
+      resolve: {
+        1: { ball: [[30, 40], [42, 50], [23, 71]], runnerTo: '3B', verdict: 'Through the cutoff to third — a step late, but the hitter’s held to a single. Corners.' },
+        2: { ball: [[30, 40], [50, 96]], runnerTo: '3B', verdict: 'You throw home with no play there. While it floats to the plate, the hitter trots into second — now second and third.' },
+        3: { ball: [[30, 40], [50, 44]], runnerTo: '3B', verdict: 'You throw behind the runner to second — but he’s already standing on third, and now the hitter has second too.' },
+      },
+      reference: [
+        ['LF', 'Field, throw to 3rd via the cutoff'],
+        ['SS', 'Cutoff on the throw to third'],
+        ['3B', 'Cover third for the tag'],
+        ['CF', 'Back up left field'],
+        ['P', 'Back up third'],
+      ],
+    },
+
+    {
+      pos: 'LF',
+      game: { inning: 7, half: 'top', away: 4, home: 5, balls: 1, strikes: 1, outs: 1 },
+      sit: '1 out · Runner on 2nd',
+      play: 'Grounder to short — he fires across to third to catch the runner tagging up.',
+      ball: [40, 58],
+      runners: ['2B'],
+      prompt: 'Where do you go?',
+      options: [
+        { n: 1, label: 'Sprint to back up third', spot: [14, 63], correct: true },
+        { n: 2, label: 'Cover second', spot: [50, 44] },
+        { n: 3, label: 'Break toward the cutoff', spot: [42, 50] },
+      ],
+      why: 'On throws to third from the right side of the infield, you back up the bag — even with the ball nowhere near you. Overthrows at third score runs.',
+      resolve: {
+        1: { ball: [[40, 58], [23, 71], [14, 63]], runnerTo: '3B', verdict: 'The throw skips past third — but you sprinted behind it. Runner has to hold.' },
+        2: { ball: [[40, 58], [23, 71], [7, 63]], runnerTo: 'H', verdict: 'You drift to second — the overthrow at third gets away with nobody behind it, and the runner scores.' },
+        3: { ball: [[40, 58], [23, 71], [7, 63]], runnerTo: 'H', verdict: 'You break toward a cutoff that isn’t there — third’s left unbacked, the ball rolls to the corner, run scores.' },
+      },
+      reference: [
+        ['LF', 'Back up third base'],
+        ['SS', 'Field, throw to third'],
+        ['3B', 'Take the throw / tag'],
+        ['P', 'Back up third'],
+        ['CF', 'Back up the play'],
+      ],
+    },
+
+    {
+      pos: 'RF',
+      game: { inning: 2, half: 'bottom', away: 0, home: 0, balls: 0, strikes: 1, outs: 2 },
+      sit: '2 outs · Bases empty',
+      play: 'Routine grounder to short, throw across to first.',
+      ball: [40, 58],
+      runners: [],
+      prompt: 'Where do you go?',
+      options: [
+        { n: 1, label: 'Sprint behind first base', spot: [86, 63], correct: true },
+        { n: 2, label: 'Cover second', spot: [50, 44] },
+        { n: 3, label: 'Hold your spot', spot: [74, 38] },
+      ],
+      why: 'Back up first base on EVERY throw to first — every grounder, every pickoff. When the routine throw sails, you save the extra base. RF’s biggest job.',
+      resolve: {
+        1: { ball: [[40, 58], [77, 71], [86, 63]], runnerTo: null, verdict: 'The throw’s offline and skips past first — but you backed it up. Batter holds at first instead of taking two.' },
+        2: { ball: [[40, 58], [77, 71], [93, 66]], runnerTo: null, verdict: 'You drift to second — the overthrow at first gets by with nobody behind it, and the batter takes second.' },
+        3: { ball: [[40, 58], [77, 71], [93, 66]], runnerTo: null, verdict: 'You stand flat‑footed — the routine throw sails past first with no backup and the batter cruises into second.' },
+      },
+      reference: [
+        ['RF', 'Back up first base'],
+        ['SS', 'Field, throw to first'],
+        ['1B', 'Take the throw at first'],
+        ['2B', 'Cover / trail'],
+        ['P', 'Back up first'],
+      ],
+    },
+
+    {
+      pos: 'RF',
+      game: { inning: 6, half: 'top', away: 5, home: 4, balls: 2, strikes: 2, outs: 1 },
+      sit: '1 out · Runner on 1st',
+      play: 'Ball driven into the right‑center gap.',
+      ball: [66, 28],
+      runners: ['1B'],
+      prompt: 'What’s your play?',
+      options: [
+        { n: 1, label: 'Hit the relay man (2B)', spot: [62, 46], correct: true },
+        { n: 2, label: 'Throw all the way to third', spot: [23, 71] },
+        { n: 3, label: 'Run it back in yourself', spot: [66, 44] },
+      ],
+      why: 'In the right‑center gap, your lead relay man is the second baseman. Get it to him low and quick — he reads the runners and relays.',
+      resolve: {
+        1: { ball: [[66, 28], [62, 46], [23, 71]], runnerTo: '3B', verdict: 'Quick relay to second, up to third — you hold the hitter to a double and keep the run from scoring.' },
+        2: { ball: [[66, 28], [23, 71]], runnerTo: 'H', verdict: 'You air it all the way on a hop and a prayer — cutoff bypassed, the runner scores, and the hitter takes third.' },
+        3: { ball: [[66, 28], [60, 44]], runnerTo: 'H', verdict: 'You run it back in yourself — way too slow. The run scores easily and the hitter pulls into second.' },
+      },
+      reference: [
+        ['RF', 'Field, hit the relay man'],
+        ['2B', 'Lead relay man (right side)'],
+        ['SS', 'Trail relay / cover'],
+        ['CF', 'Back up right‑center'],
+        ['1B', 'Cover first / trail'],
+      ],
+    },
+  ];
+
+  // Supporting fielders that move on the correct play (in SCENARIOS order) —
+  // so the whole defense reacts, not just you. [positionKey, [x,y] target].
+  const MOVERS = [
+    [['SS', [24, 70]], ['2B', [75, 70]]],                 // 3B bunt: SS covers 3rd, 2B covers 1st
+    [['CF', [49, 31]], ['SS', [45, 47]]],                 // LF back-up center: CF fields, SS cutoff
+    [['2B', [60, 56]], ['C', [50, 101]]],                 // RF cutoff home: 2B is cutoff, C covers plate
+    [['LF', [31, 41]], ['SS', [24, 70]]],                 // 3B cut home (LF): LF fields, SS covers 3rd
+    [['RF', [71, 41]], ['1B', [60, 80]]],                 // 3B cover 3rd (RF): RF fields, 1B cutoff home
+    [['SS', [42, 50]], ['3B', [24, 70]]],                 // LF throw 3rd: SS cutoff, 3B covers 3rd
+    [['SS', [38, 60]], ['3B', [24, 70]]],                 // LF back-up 3rd: SS fields, 3B takes throw
+    [['SS', [38, 60]], ['1B', [76, 70]]],                 // RF back-up 1st: SS fields, 1B takes throw
+    [['2B', [62, 46]], ['SS', [46, 52]]],                 // RF relay gap: 2B relay man, SS trails
+  ];
+  SCENARIOS.forEach((s, i) => { s.movers = MOVERS[i]; });
+
+  // How each scenario's ball was hit — drives the ball size (grounders small,
+  // fly balls big) and readiness for future pop-up / fly scenarios.
+  const HITTYPE = ['grounder', 'liner', 'liner', 'liner', 'liner', 'liner', 'grounder', 'grounder', 'liner'];
+  SCENARIOS.forEach((s, i) => { s.hitType = HITTYPE[i]; });
+  const ballRadius = (h) => (h === 'grounder' ? 1.2 : h === 'fly' ? 2.9 : 1.6);
+
+  // Where the ball comes off the bat — the read starts here and the ball's
+  // flight to where it's fielded IS the clock.
+  const HITSTART = [50, 95];
+
+  /* ===================================================================
+     WORLD-SPACE FIELD ENGINE  (ported from field-worldspace prototype)
+     Every field point is real feet from home; a single projection maps
+     world→screen. The pretty field is drawn from this; then the game's
+     legacy pixel coords (POS/BASES/scenarios) are mapped ONCE onto the
+     fitted field so every actor lands correctly without rewriting plays.
+     STYLE/CFG are the same knobs the field editor will drive.
+     =================================================================== */
+  const SQRT1_2 = Math.SQRT1_2;
+  const polar = (deg, depth) => { const r = deg * Math.PI / 180; return { x: depth * Math.sin(r), y: depth * Math.cos(r) }; };
+  const CFG = {
+    LL:  { name: 'Little League', base: 60, pitch: 46, fLF: 200, fCF: 200, fRF: 200 },
+    MLB: { name: 'MLB',           base: 90, pitch: 60.5, fLF: 330, fCF: 400, fRF: 330 },
+  };
+  const STYLE = {
+    arc:          { peak: 1.62, radius: 1.12 },
+    infieldGrass: { scale: 0.92, cutout: 0.11 },
+    dirt:         { foulStrip: 0.13, warningTrack: 0.3, homeCircle: 0.17, mound: 0.135 },
+    wall:         { panels: 6, ease: 1.7, depth: 2.2 },
+    foulPole:     { size: 1.4 },
+    mow:          { width: 3.3, opacity: 0.055 },
+    colors: {
+      grass:   ['#2c6a46', '#1c4a34', '#123020'],
+      infield: ['#347a4f', '#265d3e'],
+      dirt:    ['#c8814f', '#7d4526'],
+      track: '#a5794c', wall: '#0a1f14', wallTop: '#41684f', chalk: '#eef3f9', foulPole: '#e8c24a',
+    },
+  };
+  function buildWorld(c) {
+    const d = c.base * SQRT1_2;
+    const bases = { H: { x: 0, y: 0 }, '1B': { x: d, y: d }, '2B': { x: 0, y: 2 * d }, '3B': { x: -d, y: d } };
+    const fielders = {
+      P: { x: 0, y: c.pitch }, C: { x: 0, y: -c.base * 0.13 },
+      '1B': { x: d * 1.02, y: d * 0.82 }, '2B': { x: d * 0.60, y: 2 * d * 0.86 },
+      SS: { x: -d * 0.60, y: 2 * d * 0.86 }, '3B': { x: -d * 1.02, y: d * 0.82 },
+      LF: polar(-32, c.fLF * 0.72), CF: polar(0, c.fCF * 0.74), RF: polar(32, c.fRF * 0.72),
+    };
+    const wall = Array.from({ length: STYLE.wall.panels + 1 }, (_, i) => {
+      const a = -45 + (90 / STYLE.wall.panels) * i;
+      const pole = a <= 0 ? c.fLF : c.fRF;
+      const depth = c.fCF - (c.fCF - pole) * Math.pow(Math.abs(a) / 45, STYLE.wall.ease);
+      return polar(a, depth);
+    });
+    return { bases, fielders, wall, mound: { x: 0, y: c.pitch } };
+  }
+  // viewBox is the game's field SVG (100x118); fit the whole field into it with
+  // home near the bottom, so the fitted field drops into the game's field area.
+  const VB = { w: 100, h: 118, padX: 9, padTop: 14, padBottom: 24 };
+  function makeProject(w) {
+    const pts = [...w.wall, ...Object.values(w.fielders), ...Object.values(w.bases)];
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    const halfW = Math.max(Math.max(...xs), -Math.min(...xs));
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const worldW = halfW * 2, worldH = maxY - minY;
+    const S = Math.min((VB.w - 2 * VB.padX) / worldW, (VB.h - VB.padTop - VB.padBottom) / worldH);
+    const cx = VB.w / 2, baseY = VB.h - VB.padBottom - (0 - minY) * S;
+    return (p) => ({ x: cx + p.x * S, y: baseY - p.y * S });
+  }
+  const vsub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+  const vadd = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+  const vmul = (a, s) => ({ x: a.x * s, y: a.y * s });
+  const vnorm = (a) => { const m = Math.hypot(a.x, a.y) || 1; return { x: a.x / m, y: a.y / m }; };
+  const f2 = (p) => p.x.toFixed(1) + ' ' + p.y.toFixed(1);
+  function roundDia(sv, backoff, concave) {
+    let d = '';
+    for (let i = 0; i < 4; i++) {
+      const V = sv[i], Vp = sv[(i + 3) % 4], Vn = sv[(i + 1) % 4];
+      const din = vnorm(vsub(V, Vp)), dout = vnorm(vsub(Vn, V));
+      const pin = vadd(V, vmul(din, -backoff)), pout = vadd(V, vmul(dout, backoff));
+      const mid = { x: (pin.x + pout.x) / 2, y: (pin.y + pout.y) / 2 };
+      const ctrl = concave ? { x: 2 * mid.x - V.x, y: 2 * mid.y - V.y } : V;
+      d += (i === 0 ? 'M ' : ' L ') + f2(pin) + ' Q ' + f2(ctrl) + ' ' + f2(pout);
+    }
+    return d + ' Z';
+  }
+  function mowStripes(clip) {
+    const W = STYLE.mow.width; let s = '';
+    for (let x = -3; x < VB.w; x += 2 * W) s += `<rect x="${x.toFixed(1)}" y="0" width="${W}" height="${VB.h}" fill="#eafff4" opacity="${STYLE.mow.opacity}" clip-path="url(#${clip})"/>`;
+    return s;
+  }
+  // The pretty field as SVG layers (no fielders/bases/throw — the game draws those
+  // interactive markers on top). Returns inner markup for <g id="fieldgfx">.
+  function fieldGraphics() {
+    const c = CFG.LL, w = buildWorld(c), P = makeProject(w), gid = 'gm';
+    const pj = (p) => { const s = P(p); return s.x.toFixed(1) + ',' + s.y.toFixed(1); };
+    const B = w.bases, hm = P(B.H), mnd = P(w.mound);
+    const cen = { x: 0, y: c.base * SQRT1_2 };
+    const lerp = (b, f) => ({ x: cen.x + (b.x - cen.x) * f, y: cen.y + (b.y - cen.y) * f });
+    const grass = 'M ' + pj(B.H) + ' L ' + w.wall.map(pj).join(' L ') + ' Z';
+    const wallLine = 'M ' + w.wall.map(pj).join(' L ');
+    const foul = (side) => 'M ' + pj(B.H) + ' L ' + pj(side === 'R' ? w.wall[w.wall.length - 1] : w.wall[0]);
+    const rAt = (ft) => Math.hypot(P({ x: 0, y: ft }).x - hm.x, P({ x: 0, y: ft }).y - hm.y);
+    const moundR = rAt(c.base * STYLE.dirt.mound);
+    const bs = [B.H, B['1B'], B['2B'], B['3B']];
+    const grassIn = roundDia(bs.map(b => P(lerp(b, STYLE.infieldGrass.scale))), rAt(c.base * STYLE.infieldGrass.cutout), true);
+    const yp = c.base * STYLE.arc.peak, Rarc = c.base * STYLE.arc.radius, cyw = yp - Rarc;
+    const tt = (cyw + Math.sqrt(Math.max(0, 2 * Rarc * Rarc - cyw * cyw))) / 2;
+    const Rs = rAt(Rarc);
+    const dirtArc = `M ${f2(P(B.H))} L ${f2(P({ x: tt, y: tt }))} A ${Rs.toFixed(1)} ${Rs.toFixed(1)} 0 0 0 ${f2(P({ x: -tt, y: tt }))} L ${f2(P(B.H))} Z`;
+    const foulDirtW = rAt(c.base * STYLE.dirt.foulStrip);
+    const hcR = rAt(c.base * STYLE.dirt.homeCircle);
+    const homeCirc = `M ${(hm.x - hcR).toFixed(1)} ${hm.y.toFixed(1)} a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(2 * hcR).toFixed(1)} 0 a ${hcR.toFixed(1)} ${hcR.toFixed(1)} 0 1 0 ${(-2 * hcR).toFixed(1)} 0 Z`;
+    const trackW = rAt(c.base * STYLE.dirt.warningTrack);
+    const bbox = (sx) => { const pts = [[sx * 1.7, -2.5], [sx * 5.4, -2.5], [sx * 5.4, 4], [sx * 1.7, 4]].map(([x, y]) => P({ x, y })); return `<path d="M ${pts.map(f2).join(' L ')} Z" fill="none" stroke="${STYLE.colors.chalk}" stroke-width=".35" opacity=".7"/>`; };
+    const plate = `<path d="M ${(hm.x - 1.3).toFixed(1)} ${(hm.y - 1).toFixed(1)} L ${(hm.x + 1.3).toFixed(1)} ${(hm.y - 1).toFixed(1)} L ${(hm.x + 1.3).toFixed(1)} ${(hm.y + 0.4).toFixed(1)} L ${hm.x.toFixed(1)} ${(hm.y + 1.6).toFixed(1)} L ${(hm.x - 1.3).toFixed(1)} ${(hm.y + 0.4).toFixed(1)} Z" fill="#f4f7fb"/>`;
+    const poles = [w.wall[0], w.wall[w.wall.length - 1]].map(v => { const s = P(v); return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="${STYLE.foulPole.size}" fill="${STYLE.colors.foulPole}" stroke="#3a2e08" stroke-width=".35"/><circle cx="${(s.x - 0.35).toFixed(1)}" cy="${(s.y - 0.35).toFixed(1)}" r="${(STYLE.foulPole.size * 0.4).toFixed(2)}" fill="#fff5cc" opacity=".8"/>`; }).join('');
+    const layers = [
+      `<defs>
+        <radialGradient id="grass-${gid}" cx="50%" cy="82%" r="95%"><stop offset="0%" stop-color="${STYLE.colors.grass[0]}"/><stop offset="55%" stop-color="${STYLE.colors.grass[1]}"/><stop offset="100%" stop-color="${STYLE.colors.grass[2]}"/></radialGradient>
+        <radialGradient id="infg-${gid}" cx="50%" cy="72%" r="80%"><stop offset="0%" stop-color="${STYLE.colors.infield[0]}"/><stop offset="100%" stop-color="${STYLE.colors.infield[1]}"/></radialGradient>
+        <linearGradient id="dirt-${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${STYLE.colors.dirt[0]}"/><stop offset="100%" stop-color="${STYLE.colors.dirt[1]}"/></linearGradient>
+        <clipPath id="fair-${gid}"><path d="${grass}"/></clipPath>
+        <clipPath id="infgc-${gid}"><path d="${grassIn}"/></clipPath>
+      </defs>`,
+      `<path d="${grass}" fill="url(#grass-${gid})"/>`,
+      mowStripes('fair-' + gid),
+      `<path d="${wallLine}" fill="none" stroke="${STYLE.colors.track}" stroke-width="${trackW.toFixed(1)}" clip-path="url(#fair-${gid})"/>`,
+      `<path d="${wallLine}" fill="none" stroke="${STYLE.colors.wall}" stroke-width="${STYLE.wall.depth}" stroke-linejoin="round" stroke-linecap="round"/><path d="${wallLine}" fill="none" stroke="${STYLE.colors.wallTop}" stroke-width="0.7" stroke-linejoin="round" stroke-linecap="round"/>`,
+      `<path d="${foul('L')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="butt"/><path d="${foul('R')}" fill="none" stroke="url(#dirt-${gid})" stroke-width="${foulDirtW.toFixed(1)}" stroke-linecap="butt"/>`,
+      `<path d="${dirtArc} ${homeCirc}" fill="url(#dirt-${gid})"/>`,
+      `<path d="${grassIn}" fill="url(#infg-${gid})"/>${mowStripes('infgc-' + gid)}`,
+      `<circle cx="${mnd.x.toFixed(1)}" cy="${mnd.y.toFixed(1)}" r="${moundR.toFixed(1)}" fill="url(#dirt-${gid})"/>`,
+      `<path d="${foul('L')}" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6" fill="none"/><path d="${foul('R')}" stroke="${STYLE.colors.chalk}" stroke-width=".45" opacity=".6" fill="none"/>`,
+      `${bbox(-1)}${bbox(1)}`,
+      plate,
+      poles,
+    ];
+    return layers.join('');
+  }
+
+  // ---- map the game's legacy pixel coords (viewBox 100x118, home[50,98],
+  //      1B[77,71]) onto the fitted world field. Both diamonds share the same
+  //      1:2 proportion, so a single scale-about-home similarity maps all four
+  //      bases exactly; everything else follows. Sizes stay in viewBox units. ----
+  (function mapCoordsToField() {
+    const w = buildWorld(CFG.LL), P = makeProject(w);
+    const NH = P(w.bases.H);
+    const s = Math.hypot(P(w.bases['1B']).x - NH.x, P(w.bases['1B']).y - NH.y) / Math.hypot(77 - 50, 71 - 98);
+    const tp = ([x, y]) => [+(NH.x + (x - 50) * s).toFixed(2), +(NH.y + (y - 98) * s).toFixed(2)];
+    const mut = (a) => { if (!a) return; const [x, y] = tp(a); a[0] = x; a[1] = y; };
+    Object.values(POS).forEach(mut);
+    Object.values(BASES).forEach(mut);
+    mut(HITSTART);
+    SCENARIOS.forEach((sc) => {
+      mut(sc.ball);
+      (sc.options || []).forEach((o) => mut(o.spot));
+      Object.values(sc.resolve || {}).forEach((r) => (r.ball || []).forEach(mut));
+      (sc.movers || []).forEach((m) => mut(m[1]));
+    });
+    // The old outfielder coords were placed for the old SHALLOW field; the
+    // similarity above just carried that shallowness forward, so LF/CF/RF sat
+    // right on top of the infield. Put them at their true to-scale depth from
+    // the world model instead — they start deep and charge in on the play.
+    ['LF', 'CF', 'RF'].forEach((k) => { const p = P(w.fielders[k]); POS[k][0] = +p.x.toFixed(2); POS[k][1] = +p.y.toFixed(2); });
+  })();
+
+  // Pre-pitch coaching, per scenario: a punchy CALL + a three-line read that
+  // always flows SITUATION → PRIORITY → YOUR READ, so the panel leads with the
+  // situation and what you're protecting, and the specific job (cut / cover /
+  // back up) is discovered on the field — never pre-announced.
+  //
+  // Priority order is "stop the run first, then hold the hitter." That's really
+  // a choice: the `situation` is derivable from game state and the `priority`
+  // is where a coach "personality" (aggressive vs. conservative) or the sim
+  // would plug in — this authored layer is the shape a generator would output.
+  const COACH = [
+    { // 0 · 3B · bunt · no outs · runner on 1st
+      call: 'No outs · Bunt’s on · Get the sure out',
+      situation: 'No outs, runner on 1st. The batter’s squaring to bunt — he’s giving himself up to push the runner to second.',
+      priority: 'Don’t try to be a hero and get the lead runner. Get the one out you’re sure of — the batter at first.',
+      read: 'The ball’s coming slow down the third-base line. Who has to charge it, and where’s the throw go?',
+    },
+    { // 1 · LF · single to center · 1 out · runner on 1st
+      call: 'One out · Ball to center · Back him up',
+      situation: 'One out, runner on 1st. A single up the middle puts runners on the corners if it scoots through.',
+      priority: 'Keep the ball in front of your center fielder. If it skips past him you’re the last line — don’t let it roll to the wall for extra bases.',
+      read: 'It’s hit to center, not to you. On every ball to center field, where does the left fielder go?',
+    },
+    { // 2 · RF · base hit to right · 2 outs · runner on 2nd scoring
+      call: 'Two outs · Runner trying to score · Stop the run',
+      situation: 'Two outs, runner on 2nd — in scoring position, and already digging for home on the hit.',
+      priority: 'First, give your team a shot to throw him out at the plate. If there’s no play there, keep the batter off second.',
+      read: 'You’re too deep to fire all the way home on a line. Who do you hit to give the throw a chance?',
+    },
+    { // 3 · 3B · base hit to LEFT · 1 out · runner on 2nd scoring
+      call: 'One out · Runner on 2nd · Stop the run',
+      situation: 'One out, runner on 2nd in scoring position, rounding third to score on the ball to left.',
+      priority: 'First, try to throw that run out at the plate. If the throw won’t beat him, make sure the hitter doesn’t take second.',
+      read: 'The throw’s coming home from left field. On a throw home from that side, what’s the third baseman’s job?',
+    },
+    { // 4 · 3B · base hit to RIGHT · 1 out · runner on 2nd scoring
+      call: 'One out · Runner on 2nd · Stop the run',
+      situation: 'One out, runner on 2nd in scoring position, racing around to score on the ball to right.',
+      priority: 'First, help stop the run. If you can’t, don’t let the hitter stretch it into extra bases.',
+      read: 'The ball’s to right — the first baseman takes the throw home from that side. So what does that leave for you?',
+    },
+    { // 5 · LF · single to left · no outs · runner on 1st first-to-third
+      call: 'No outs · Runner’s flying · Throw ahead of him',
+      situation: 'No outs, runner on 1st — and he’s rounding second, trying to go first-to-third on the hit to left.',
+      priority: 'Get the ball in ahead of the runner for a shot at third. Even if he beats it, don’t let the hitter sneak into second behind the play.',
+      read: 'You want to throw to third — but not a wild heave. Who do you throw through to keep it on line?',
+    },
+    { // 6 · LF · throw across to third · 1 out · runner on 2nd
+      call: 'One out · Throw going to third · Back it up',
+      situation: 'One out, runner on 2nd. The shortstop’s throwing across to third to catch the runner leaning.',
+      priority: 'Make sure that throw can’t cost a run. If it skips past third, you’re there so the runner can’t come around to score.',
+      read: 'The ball’s nowhere near you. When a throw’s going to a base, what’s your job away from the ball?',
+    },
+    { // 7 · RF · routine grounder to first · 2 outs · bases empty
+      call: 'Two outs · Bases empty · Just get the out',
+      situation: 'Nobody on, two outs. One out ends the inning — the only runner is the batter.',
+      priority: 'Get the out at first. Nothing fancy — just don’t let a bad throw turn into extra bases.',
+      read: 'It’s not hit to you. On every throw to first base, where do you belong?',
+    },
+    { // 8 · RF · gap ball · 1 out · runner on 1st
+      call: 'One out · In the gap · Hit your relay',
+      situation: 'One out, runner on 1st. The ball splits the right-center gap and rolls — this one could go for extra bases.',
+      priority: 'Keep it from turning into a run. Get it back in fast to hold the runners — don’t let the hitter reach third.',
+      read: 'It’s too far to throw all the way in. Who runs out to meet your throw and relay it?',
+    },
+  ];
+  SCENARIOS.forEach((s, i) => { s.coach = COACH[i]; });
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const $ = (id) => document.getElementById(id);
+  const el = (name, attrs = {}) => {
+    const n = document.createElementNS(svgNS, name);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  };
+
+  let idx = 0, iq = 0, streak = 0, answered = false, mode = 'quiz';
+  let phase = 'setup';  // 'setup' (pre-pitch) → 'live' (ball in flight, awaiting the read) → 'resolved'
+  let pick = null;      // the spot Rylan committed to during the read (null = he froze)
+  let readScale = 1.75; // Rookie by default; the ball flight (the clock) is slower = more time
+  let flightToken = 0;  // bumped to cancel an in-progress ball flight (Next / new play)
+  let panelCollapsed = false; // coaching panel collapsed to peek at the field
+  let displayOpts = []; // options in shuffled display order (so the answer isn't always first)
+  let posFilter = '3B'; // drill one position at a time
+  const POSITIONS = ['All', ...Array.from(new Set(SCENARIOS.map((s) => s.pos)))];
+  const playable = () => (posFilter === 'All' ? SCENARIOS : SCENARIOS.filter((s) => s.pos === posFilter));
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  // Shuffled playlist of scenarios for the current position; reshuffled each pass.
+  let order = [];
+  const buildOrder = () => {
+    const prevLast = order[order.length - 1];
+    order = shuffle(playable().slice());
+    if (order.length > 1 && order[0] === prevLast) order.push(order.shift()); // avoid immediate repeat
+  };
+
+  function drawStatic(sc) {
+    // bases
+    const bg = $('bases'); bg.innerHTML = '';
+    for (const key of ['1B', '2B', '3B']) {
+      const [x, y] = BASES[key];
+      const b = el('rect', { x: x - 1.6, y: y - 1.6, width: 3.2, height: 3.2, rx: .5, fill: '#f4f7fb', transform: `rotate(45 ${x} ${y})` });
+      bg.appendChild(b);
+    }
+    // (home plate is drawn by the field itself — see fieldGraphics)
+
+    // fielders (dim except you)
+    const fg = $('fielders'); fg.innerHTML = '';
+    for (const key in POS) {
+      const [x, y] = POS[key];
+      const you = key === sc.pos;
+      if (you) continue; // drawn separately in #you
+      const g = el('g', { opacity: .55 });
+      const c = el('circle', { id: 'fc-' + key, cx: x, cy: y, r: 2.4, fill: '#0c1a12', stroke: '#8fb6a0', 'stroke-width': .5 });
+      const t = el('text', { id: 'ft-' + key, x, y: y + 0.9, 'text-anchor': 'middle', 'font-size': 2.4, fill: '#cfe3d6', 'font-family': "'Bahnschrift','Arial Narrow',sans-serif" });
+      t.textContent = key;
+      g.appendChild(c); g.appendChild(t);
+      fg.appendChild(g);
+    }
+
+    // runners
+    const rg = $('runners'); rg.innerHTML = '';
+    (sc.runners || []).forEach((key, i) => {
+      const [x, y] = BASES[key];
+      const c = el('circle', { cx: x, cy: y - 3.2, r: 2, fill: '#fbbf24', stroke: '#3a2a05', 'stroke-width': .5 });
+      if (i === 0) c.setAttribute('id', 'leadrunner');
+      rg.appendChild(c);
+    });
+    // batter-runner: starts at home, runs it out when the play unfolds
+    rg.appendChild(el('circle', { id: 'batter', cx: HITSTART[0], cy: HITSTART[1], r: 2, fill: '#fbbf24', stroke: '#3a2a05', 'stroke-width': .5 }));
+
+    // you marker
+    const yg = $('you'); yg.innerHTML = '';
+    const [yx, yy] = POS[sc.pos];
+    if (!reduced) {
+      const ring = el('circle', { cx: yx, cy: yy, r: 3, fill: 'none', stroke: '#f97316', 'stroke-width': 1 });
+      ring.setAttribute('class', 'pulse-ring');
+      ring.style.transformOrigin = `${yx}px ${yy}px`;
+      ring.style.animation = 'ping 1.8s ease-out infinite';
+      yg.appendChild(ring);
+    }
+    const you = el('circle', { id: 'youdot', cx: yx, cy: yy, r: 3, fill: '#f97316', stroke: '#2a1503', 'stroke-width': .6 });
+    you.style.transition = 'cx .6s ease, cy .6s ease';
+    yg.appendChild(you);
+    const yt = el('text', { id: 'youlabel', x: yx, y: yy + 0.9, 'text-anchor': 'middle', 'font-size': 2.6, fill: '#1a0e02', 'font-family': "'Bahnschrift','Arial Narrow',sans-serif" });
+    yt.textContent = sc.pos; yt.style.transition = 'x .6s ease, y .6s ease';
+    yg.appendChild(yt);
+
+    // ball — hidden during the pre-pitch; it appears at the bat when Play is
+    // pressed and flies to where it's fielded (see animateFlight).
+    const ball = $('ball'); ball.style.display = 'none';
+    ball.setAttribute('r', ballRadius(sc.hitType));
+    ball.setAttribute('cx', HITSTART[0]); ball.setAttribute('cy', HITSTART[1]);
+    $('balltail').setAttribute('opacity', 0);
+  }
+
+  // Unlabeled candidate spots — Rylan has to KNOW where to go, not read a label.
+  // They only become tappable once the ball is live (phase === 'live').
+  function drawTargets(sc) {
+    const tg = $('targets'); tg.innerHTML = '';
+    if (mode !== 'quiz') return;
+    displayOpts.forEach((o) => {
+      const [x, y] = o.spot;
+      const g = el('g', { class: 'target', tabindex: '0', role: 'button', 'aria-label': 'Fielding spot', style: 'cursor:pointer' });
+      g.dataset.d = o._d; g.setAttribute('id', 'tgt-' + o._d);
+      if (!reduced) {
+        const ping = el('circle', { cx: x, cy: y, r: 3.6, fill: 'none', stroke: '#26c565', 'stroke-width': .8 });
+        ping.style.transformOrigin = `${x}px ${y}px`;
+        ping.style.animation = `ping 1.7s ease-out ${o._d * .22}s infinite`;
+        g.appendChild(ping);
+      }
+      g.appendChild(el('circle', { class: 'tdisc', cx: x, cy: y, r: 3.4, fill: 'rgba(9,20,14,.55)', stroke: '#26c565', 'stroke-width': 1 }));
+      g.appendChild(el('circle', { cx: x, cy: y, r: 6.5, fill: 'transparent' })); // fat tap target for phones
+      g.addEventListener('click', () => selectSpot(o));
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSpot(o); } });
+      tg.appendChild(g);
+    });
+  }
+
+  // Highlight the spot Rylan committed to; dim the pulse on the rest.
+  function markSelected(o) {
+    document.querySelectorAll('#targets .target').forEach((g) => {
+      const disc = g.querySelector('.tdisc');
+      const ring = g.querySelector('circle:not(.tdisc)');
+      const on = Number(g.dataset.d) === o._d;
+      if (disc) { disc.setAttribute('fill', on ? 'rgba(249,115,22,.9)' : 'rgba(9,20,14,.4)'); disc.setAttribute('stroke', on ? '#f97316' : 'rgba(38,197,101,.35)'); }
+      if (ring && ring.style) ring.style.animation = 'none';
+    });
+  }
+
+  let lastPlay = null;
+
+  // ---- the read loop: Play → ball in flight (the clock) → commit → resolve ----
+
+  // The read window = how long the ball is in the air to where it's fielded.
+  // Rookie stretches it (slower ball, lots of reading time), Real tightens it
+  // toward game speed. Longer balls give a little more time than short ones.
+  function flightDur(dist) {
+    return Math.min(3000, Math.max(1500, dist / 32 * 1000)) * readScale;
+  }
+  function setReadFill(frac) {
+    const rf = $('readfill'); if (!rf) return;
+    rf.style.width = Math.max(0, frac * 100) + '%';
+    rf.style.background = frac > 0.5 ? 'var(--accent)' : frac > 0.25 ? 'var(--gold)' : 'var(--wrong)';
+  }
+
+  function buildPrepitch(sc) {
+    const c = sc.coach;
+    $('callline').innerHTML = linkify(c.call);
+    $('brief').innerHTML =
+      `<li class="bl-s"><span class="lab">Situation</span>${linkify(c.situation)}</li>` +
+      `<li class="bl-p"><span class="lab">Priority</span>${linkify(c.priority)}</li>` +
+      `<li class="bl-r"><span class="lab">Your read</span>${linkify(c.read)}</li>`;
+  }
+
+  // PLAY pressed — put the ball in motion. Its flight to the fielded spot is the
+  // window: tap a spot before it's fielded, or you froze.
+  function startPlay() {
+    if (phase !== 'setup' || mode !== 'quiz') return;
+    const sc = order[idx];
+    phase = 'live'; pick = null; answered = false;
+    $('prepitch').style.display = 'none';
+    $('readUI').style.display = '';
+    $('readprompt').textContent = 'Read it — get to your spot!';
+    setReadFill(1);
+    drawTargets(sc);
+
+    const ball = $('ball');
+    ball.style.display = 'block';
+    ball.setAttribute('r', ballRadius(sc.hitType));
+    resetActor(ball, HITSTART);
+
+    if (reduced) { resetActor(ball, sc.ball); return; } // no clock — just wait for a tap
+    animateFlight(sc, () => endRead());
+  }
+
+  // Rylan taps a spot during the read. His fielder reacts immediately, but the
+  // play doesn't resolve until the ball is actually fielded (flight ends).
+  function selectSpot(o) {
+    if (phase !== 'live') return;
+    pick = o;
+    moveYou(o.spot);
+    markSelected(o);
+    if (reduced) { endRead(); return; }     // no clock in reduced motion — commit now
+    $('readprompt').textContent = 'Locked — here it comes!';
+  }
+
+  function endRead() {
+    if (phase !== 'live') return;
+    phase = 'resolved';
+    $('readUI').style.display = 'none';
+    commit(pick);
+  }
+
+  // Flight of the batted ball from the bat to where it's fielded. rAF tween with
+  // a motion tail; a fly ball swells toward its peak. Also drives the countdown.
+  // A cancel token stops a stale flight if the play changes mid-air.
+  function animateFlight(sc, done) {
+    const ball = $('ball'), tail = $('balltail');
+    const [ax, ay] = HITSTART, [bx, by] = sc.ball;
+    const baseR = ballRadius(sc.hitType), dist = Math.hypot(bx - ax, by - ay);
+    const dur = flightDur(dist), dd = dist || 1, t0 = performance.now();
+    const my = ++flightToken;
+    (function step(t) {
+      if (my !== flightToken) return;                 // superseded — abandon quietly
+      const f = Math.min(1, (t - t0) / dur);
+      const cx = ax + (bx - ax) * f, cy = ay + (by - ay) * f;
+      const r = sc.hitType === 'fly' ? baseR * (1 + 0.6 * Math.sin(Math.PI * f)) : baseR;
+      ball.setAttribute('r', r); ball.setAttribute('cx', cx); ball.setAttribute('cy', cy);
+      const behind = Math.min(8, f * dist);
+      tail.setAttribute('x1', cx - (bx - ax) / dd * behind); tail.setAttribute('y1', cy - (by - ay) / dd * behind);
+      tail.setAttribute('x2', cx); tail.setAttribute('y2', cy);
+      tail.setAttribute('stroke-width', Math.max(1, r * 0.9)); tail.setAttribute('opacity', 0.6);
+      setReadFill(1 - f);
+      if (f < 1) requestAnimationFrame(step);
+      else { tail.setAttribute('opacity', 0); setReadFill(0); done(); }
+    })(t0);
+  }
+
+  // Commit the read: score it, then play out the consequence. picked === null
+  // means he froze — we demo the correct play so he sees what he missed.
+  function commit(picked) {
+    const sc = order[idx];
+    const correct = displayOpts.find((o) => o.correct);
+    const frozen = !picked;
+    const good = !frozen && !!picked.correct;
+    const outcome = frozen ? sc.resolve[correct.n] : sc.resolve[picked.n];
+
+    if (good) { streak += 1; iq += 10 + Math.min(streak, 5) * 2; }
+    else { streak = 0; iq = Math.max(0, iq - 4); }
+    animateNum($('iq'), iq);
+    $('streak').innerHTML = `${streak}<span style="font-size:16px">🔥</span>`;
+
+    lastPlay = { sc, picked, correct, good, frozen, outcome, youSpot: frozen ? correct.spot : picked.spot };
+    unfold(false);
+  }
+
+  // ---- baserunning: run along the base paths (rounding bases) ----
+  const RUN = ['H', '1B', '2B', '3B'];
+  const runnerPoint = (k) => (k === 'H' ? [HITSTART[0], HITSTART[1]] : [BASES[k][0], BASES[k][1] - 3.2]);
+  function pathBetween(from, to) {
+    const iFrom = RUN.indexOf(from);
+    const iTo = to === 'H' ? 4 : RUN.indexOf(to);
+    const keys = [];
+    for (let i = iFrom; i <= iTo; i++) keys.push(i === 4 ? 'H' : RUN[i]);
+    return keys;
+  }
+  function runBases(elm, from, to, dur) {
+    if (!elm || !to) return;
+    const pts = pathBetween(from, to).map(runnerPoint);
+    elm.style.transition = 'none';
+    if (reduced || pts.length < 2) { const p = pts[pts.length - 1]; elm.setAttribute('cx', p[0]); elm.setAttribute('cy', p[1]); return; }
+    const segs = []; let total = 0;
+    for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(d); total += d; }
+    const t0 = performance.now();
+    (function step(t) {
+      const p = Math.min(1, (t - t0) / dur); let dist = p * total, i = 0;
+      while (i < segs.length - 1 && dist > segs[i]) { dist -= segs[i]; i++; }
+      const a = pts[i], b = pts[i + 1] || pts[i], f = segs[i] ? Math.min(1, dist / segs[i]) : 1;
+      elm.setAttribute('cx', a[0] + (b[0] - a[0]) * f); elm.setAttribute('cy', a[1] + (b[1] - a[1]) * f);
+      if (p < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+
+  function resetActor(el, pt) { if (!el || !pt) return; el.style.transition = 'none'; el.setAttribute('cx', pt[0]); el.setAttribute('cy', pt[1]); el.getBoundingClientRect(); }
+  function resetFielder(key) {
+    const c = $('fc-' + key), t = $('ft-' + key), [x, y] = POS[key];
+    if (c) { c.style.transition = 'none'; c.setAttribute('cx', x); c.setAttribute('cy', y); c.getBoundingClientRect(); }
+    if (t) { t.style.transition = 'none'; t.setAttribute('x', x); t.setAttribute('y', y + 0.9); }
+  }
+  function resetYou(pos) {
+    const d = $('youdot'), t = $('youlabel'), [x, y] = pos;
+    if (d) { d.style.transition = 'none'; d.setAttribute('cx', x); d.setAttribute('cy', y); d.getBoundingClientRect(); d.style.transition = 'cx .6s ease, cy .6s ease'; }
+    if (t) { t.style.transition = 'none'; t.setAttribute('x', x); t.setAttribute('y', y + 0.9); t.style.transition = 'x .6s ease, y .6s ease'; }
+  }
+
+  // Plays out (or replays) the stored play: fielders react, you move, the ball
+  // travels, runners round the bases, and the batter runs it out.
+  function unfold(isReplay) {
+    if (!lastPlay) return;
+    const { sc, picked, correct, good, frozen, outcome, youSpot } = lastPlay;
+    $('targets').innerHTML = '';
+    const pr = document.querySelector('.pulse-ring'); if (pr) pr.remove();
+
+    // reset the supporting actors to their pre-play spots
+    if (sc.runners && sc.runners[0]) resetActor($('leadrunner'), runnerPoint(sc.runners[0]));
+    resetActor($('batter'), runnerPoint('H'));
+    (sc.movers || []).forEach(([k]) => resetFielder(k));
+
+    // The throw sequence + baserunning + feedback — runs once the ball's fielded.
+    const runResolve = () => {
+      const beat = reduced ? 0 : 420;   // fielder secures & sets before the throw
+      requestAnimationFrame(() => {
+        (sc.movers || []).forEach(([k, to]) => moveFielder(k, to, 1900));
+        if (frozen) moveYou(youSpot);   // demo the spot he never got to
+        if (!good) { $('field').classList.add('shake'); setTimeout(() => $('field').classList.remove('shake'), 380); }
+        setTimeout(() => {
+          if (sc.runners && sc.runners[0]) runBases($('leadrunner'), sc.runners[0], outcome.runnerTo, 2000);
+          runBases($('batter'), 'H', outcome.batterTo || '1B', 1650);
+          animateResolution(outcome, () => {
+            if (!good && !frozen) moveYou(correct.spot); // wrong tap → show where he should've been
+            if (!isReplay) {
+              const fb = $('feedback');
+              fb.className = 'feedback show ' + (good ? 'good' : 'bad');
+              $('verdict').innerHTML = good ? '✓ Right — and in time!' : (frozen ? '✕ Too slow — you froze' : '✕ Wrong spot — here’s why');
+              $('result').innerHTML = frozen
+                ? linkify('You never got to your spot. Your job was to ' + correct.label.toLowerCase() + '. Here’s the play you missed:')
+                : linkify(outcome.verdict);
+              $('why').innerHTML = linkify(sc.why);
+              fb.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' });
+            }
+          });
+        }, beat);
+      });
+    };
+
+    if (isReplay) {
+      // Replay the whole rep from the hit: Rylan back home, ball back at the bat,
+      // fly it in (he runs to his spot as it travels), then resolve.
+      resetYou(POS[sc.pos]);
+      const ball = $('ball'); ball.style.display = 'block';
+      ball.setAttribute('r', ballRadius(sc.hitType)); resetActor(ball, HITSTART);
+      if (!frozen) moveYou(youSpot);
+      if (reduced) { resetActor(ball, sc.ball); runResolve(); }
+      else animateFlight(sc, runResolve);
+    } else {
+      // Live rep: the ball already flew and sits at the fielded spot; Rylan is
+      // standing where he tapped (or at home if he froze).
+      resetActor($('ball'), outcome.ball[0]);
+      runResolve();
+    }
+  }
+
+  // Glide a chip (circle + its text label) together to a spot over `dur` ms.
+  // We tween in rAF instead of CSS transitions because Chrome won't smoothly
+  // transition a <text> element's x/y — the label would teleport while the dot
+  // slid. A per-element token cancels an earlier move if a newer one starts.
+  function glideChip(circle, label, to, dur) {
+    if (!circle) return;
+    const fx = +circle.getAttribute('cx'), fy = +circle.getAttribute('cy');
+    const tx = to[0], ty = to[1];
+    circle.style.transition = 'none'; if (label) label.style.transition = 'none';
+    if (reduced || dur <= 0) {
+      circle.setAttribute('cx', tx); circle.setAttribute('cy', ty);
+      if (label) { label.setAttribute('x', tx); label.setAttribute('y', ty + 0.9); }
+      return;
+    }
+    const my = (circle._glide = (circle._glide || 0) + 1), t0 = performance.now();
+    (function step(t) {
+      if (circle._glide !== my) return;               // superseded by a newer move
+      const p = Math.min(1, (t - t0) / dur);
+      const e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // easeInOut
+      const cx = fx + (tx - fx) * e, cy = fy + (ty - fy) * e;
+      circle.setAttribute('cx', cx); circle.setAttribute('cy', cy);
+      if (label) { label.setAttribute('x', cx); label.setAttribute('y', cy + 0.9); }
+      if (p < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+  // Run speed in field units/sec — reads as the player sprinting to his spot
+  // rather than teleporting; a move across the infield takes ~2.5s.
+  const RUNSPEED = 20;
+  const chipDur = (from, to) => Math.max(800, Math.hypot(to[0] - from[0], to[1] - from[1]) / RUNSPEED * 1000);
+
+  // Slides a supporting fielder (circle + label) to a target spot.
+  function moveFielder(key, to, dur) {
+    const c = $('fc-' + key), t = $('ft-' + key);
+    if (!c) return;
+    glideChip(c, t, to, dur || chipDur([+c.getAttribute('cx'), +c.getAttribute('cy')], to));
+  }
+
+  function animateResolution(outcome, done) {
+    const ball = $('ball');
+    const tail = $('balltail');
+    const pts = outcome.ball;
+    const hitType = lastPlay && lastPlay.sc ? lastPlay.sc.hitType : 'liner';
+    const baseR = ballRadius(hitType);
+
+    if (reduced || pts.length < 2) {
+      const last = pts[pts.length - 1];
+      ball.setAttribute('cx', last[0]); ball.setAttribute('cy', last[1]);
+      tail.setAttribute('opacity', 0);
+      setTimeout(done, reduced ? 0 : 700);
+      return;
+    }
+
+    const SPEED = 46;      // field units per second
+    const PAUSE = 550;     // ms a fielder holds the ball to set & throw
+    const TAIL = 7;        // motion-tail length
+
+    // Animate one leg (a throw or the hit) at a time, pausing between them.
+    function runLeg(seg) {
+      const a = pts[seg], b = pts[seg + 1];
+      const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const legDur = Math.max(350, (d / SPEED) * 1000);
+      const t0 = performance.now();
+      (function step(t) {
+        const f = Math.min(1, (t - t0) / legDur);
+        const cx = a[0] + (b[0] - a[0]) * f, cy = a[1] + (b[1] - a[1]) * f;
+        const r = (hitType === 'fly' && seg === 0) ? baseR * (1 + 0.55 * Math.sin(Math.PI * f)) : baseR;
+        ball.setAttribute('r', r);
+        ball.setAttribute('cx', cx); ball.setAttribute('cy', cy);
+        // motion tail pointing back along this leg
+        if (d > 0.5) {
+          const ux = (a[0] - b[0]) / d, uy = (a[1] - b[1]) / d; // unit vector backwards
+          const behind = Math.min(TAIL, f * d);
+          tail.setAttribute('x1', cx + ux * behind); tail.setAttribute('y1', cy + uy * behind);
+          tail.setAttribute('x2', cx); tail.setAttribute('y2', cy);
+          tail.setAttribute('stroke-width', Math.max(1, r * 0.9));
+          tail.setAttribute('opacity', 0.6);
+        }
+        if (f < 1) requestAnimationFrame(step);
+        else {
+          tail.setAttribute('opacity', 0);   // ball is caught — tail fades
+          if (seg < pts.length - 2) setTimeout(() => runLeg(seg + 1), PAUSE); // set & throw
+          else setTimeout(done, 450);
+        }
+      })(t0);
+    }
+    runLeg(0);
+  }
+
+  function moveYou(spot) {
+    const dot = $('youdot'), label = $('youlabel');
+    if (!dot) return;
+    glideChip(dot, label, spot, chipDur([+dot.getAttribute('cx'), +dot.getAttribute('cy')], spot));
+  }
+
+  function animateNum(node, target) {
+    if (reduced) { node.textContent = target; return; }
+    const start = Number(node.textContent) || 0;
+    const t0 = performance.now();
+    function step(t) {
+      const p = Math.min(1, (t - t0) / 500);
+      node.textContent = Math.round(start + (target - start) * p);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function ord(n) {
+    const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+  // TV-style scorebug: teams + score, inning with a live bases diamond, and a
+  // B/S/O light cluster (balls 0–3, strikes/outs 0–2).
+  function renderSituation(g, runners) {
+    const on = runners || [];
+    const pips = (n, total) =>
+      Array.from({ length: total }, (_, i) => `<i class="p ${i < n ? 'on' : ''}"></i>`).join('');
+    const base = (cx, cy, lit) =>
+      `<rect x="${cx - 2.6}" y="${cy - 2.6}" width="5.2" height="5.2" transform="rotate(45 ${cx} ${cy})" ${lit ? 'fill="#fbbf24" stroke="#fbbf24"' : 'fill="none" stroke="#9fb3cf"'} stroke-width="1"/>`;
+    const dia = `<svg class="dia" viewBox="0 0 22 16" aria-hidden="true">${base(11, 4.5, on.includes('2B'))}${base(17.5, 10, on.includes('1B'))}${base(4.5, 10, on.includes('3B'))}</svg>`;
+    const prog = `${posFilter === 'All' ? 'ALL' : order[idx].pos} · ${idx + 1}/${order.length}`;
+    $('scorebug').innerHTML =
+      `<div class="seg teams">
+         <div class="tr away"><span class="tab"></span><span class="ab">AWY</span><span class="rs">${g.away}</span></div>
+         <div class="tr home"><span class="tab"></span><span class="ab">HOM</span><span class="rs">${g.home}</span></div>
+       </div>
+       <div class="seg inn"><div class="il"><span class="ar">${g.half === 'top' ? '▲' : '▼'}</span>${ord(g.inning)}</div>${dia}</div>
+       <div class="seg bso">
+         <div class="bsrow b"><span class="bl">B</span><span class="pips">${pips(g.balls, 3)}</span></div>
+         <div class="bsrow s"><span class="bl">S</span><span class="pips">${pips(g.strikes, 2)}</span></div>
+         <div class="bsrow o"><span class="bl">O</span><span class="pips">${pips(g.outs, 2)}</span></div>
+       </div>
+       <div class="seg iq">
+         <div class="iqcell"><b>DEF IQ</b><span class="iqn num" id="iq">${iq}</span></div>
+         <div class="iqsub"><span class="streak" id="streak">${streak}<span style="font-size:9px">🔥</span></span><span class="prog">${prog}</span></div>
+       </div>`;
+  }
+
+  function drawReference(sc) {
+    const list = $('reflist'); list.innerHTML = '';
+    sc.reference.forEach(([p, j]) => {
+      const row = document.createElement('div');
+      row.className = 'refrow' + (p === sc.pos ? ' you' : '');
+      row.innerHTML = `<span class="rp">${p}</span><span class="rj">${linkify(j)}</span>`;
+      list.appendChild(row);
+    });
+  }
+
+  // ---- glossary: tap a term for a beginner-friendly hint ----
+  const GLOSSARY = [
+    { t: ['single'], d: 'A hit where the batter reaches first base safely and stops there.' },
+    { t: ['double'], d: 'A hit good enough for the batter to reach second base.' },
+    { t: ['triple'], d: 'A hit all the way to third base — usually a ball hit deep or into a gap.' },
+    { t: ['extra bases', 'extra base'], d: 'Any base past first — a double or triple, or a runner taking another base on a bad throw. Defense tries to stop these.' },
+    { t: ['scoring position', 'in scoring position'], d: 'A runner on 2nd or 3rd base — one base hit is usually enough to score him, so the defense bears down to stop the run.' },
+    { t: ['corners'], d: 'Runners on first and third base at the same time ("runners on the corners").' },
+    { t: ['base hit'], d: 'When the batter hits the ball and reaches a base safely.' },
+    { t: ['line drive'], d: 'A ball hit hard and on a low, straight line — fast and tough to field.' },
+    { t: ['ground ball', 'grounder'], d: 'A ball hit down onto the ground that rolls or bounces through the infield.' },
+    { t: ['fly ball'], d: 'A ball hit high into the air out to the outfield.' },
+    { t: ['pop-up', 'pop up'], d: 'A ball hit high but not far — usually caught by an infielder.' },
+    { t: ['bunt'], d: 'A soft tap: the batter just holds the bat out to make the ball roll a short way.' },
+    { t: ['gap'], d: 'The open space between two outfielders (left‑center or right‑center). Balls hit there roll far and often go for extra bases.' },
+    { t: ['off the wall'], d: 'A ball hit so hard it bounces off the outfield fence — the hitter can take extra bases.' },
+    { t: ['cutoff man', 'cutoff', 'the cut', 'cut the throw', 'cuts'], d: 'An infielder who stands between the outfielder and a base to catch (“cut”) the throw and send it wherever it’s needed.' },
+    { t: ['relay man', 'relay'], d: 'A middle infielder who runs out toward a ball in the gap, takes the outfielder’s throw, and quickly relays it back in.' },
+    { t: ['back up', 'backing up', 'back it up', 'backed it up', 'backed up'], d: 'Stand behind a base or fielder so if the throw gets past them, you’re there to stop it.' },
+    { t: ['cover', 'covering', 'covers'], d: 'Run to stand on a base so you can catch a throw there for an out.' },
+    { t: ['charge', 'charges', 'charged'], d: 'Run in fast toward a slow ball (like a bunt) so you can field it and throw sooner.' },
+    { t: ['held to a single', 'hold', 'held'], d: '“Held” means you kept the runner from taking extra bases — e.g. held to a single = he only got one base.' },
+    { t: ['force', 'force out', 'forced'], d: 'When a runner MUST advance, you only have to touch the base (no tag needed) to get him out.' },
+    { t: ['double play'], d: 'Two outs on one batted ball — usually get the runner, then the batter.' },
+    { t: ['tag up'], d: 'On a caught fly ball, a runner has to touch his base again before he’s allowed to run.' },
+    { t: ['first‑to‑third', 'first-to-third'], d: 'A runner on first base running hard all the way to third on a base hit.' },
+    { t: ['rounds third', 'rounding third', 'digging for home', 'races around to score', 'scores', 'score'], d: 'The runner is sprinting toward home plate to score a run.' },
+    { t: ['cutoff on the throw home', 'throw home'], d: 'A throw from the outfield toward home plate to try to stop a run.' },
+    { t: ['infield'], d: 'The dirt area with the four bases and the pitcher’s mound.' },
+    { t: ['outfield'], d: 'The big grass area past the infield, where the three outfielders play.' },
+  ];
+  const GLOSS_MAP = {};
+  GLOSSARY.forEach((g) => g.t.forEach((k) => { GLOSS_MAP[k.toLowerCase()] = g.d; }));
+  const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const TERM_RE = new RegExp(
+    '\\b(' + Object.keys(GLOSS_MAP).sort((a, b) => b.length - a.length).map(escRe).join('|') + ')\\b',
+    'gi'
+  );
+  const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function linkify(text) {
+    return escHtml(text).replace(TERM_RE, (m) => `<span class="term" data-term="${m.toLowerCase()}">${m}</span>`);
+  }
+  const glosspop = document.createElement('div');
+  glosspop.className = 'glosspop';
+  document.body.appendChild(glosspop);
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('.term');
+    if (t) {
+      e.stopPropagation();
+      const def = GLOSS_MAP[t.dataset.term];
+      if (!def) return;
+      glosspop.innerHTML = `<div class="gt">${t.textContent}</div><div class="gd">${def}</div>`;
+      glosspop.style.display = 'block';
+      const w = Math.min(280, window.innerWidth - 16);
+      glosspop.style.width = w + 'px';
+      const r = t.getBoundingClientRect();
+      glosspop.style.left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8) + 'px';
+      const below = r.bottom + 6;
+      glosspop.style.top = (below + glosspop.offsetHeight > window.innerHeight - 8 ? r.top - glosspop.offsetHeight - 6 : below) + 'px';
+    } else {
+      glosspop.style.display = 'none';
+    }
+  });
+
+  function render() {
+    if (!order.length) buildOrder();
+    if (idx >= order.length) idx = 0;
+    const sc = order[idx];
+    answered = false; phase = 'setup'; pick = null; flightToken++; // cancel any in-air ball
+    renderSituation(sc.game, sc.runners);
+    $('posbadge').textContent = sc.pos;
+    $('premise').innerHTML = linkify(sc.play);
+    $('prepitch').classList.toggle('collapsed', panelCollapsed);
+    $('feedback').className = 'feedback';
+    // Shuffle the options → spot positions (unlabeled); the stable option.n still
+    // drives per-option outcomes, so nothing else breaks.
+    displayOpts = shuffle(sc.options.slice());
+    displayOpts.forEach((o, i) => { o._d = i + 1; });
+    drawStatic(sc);
+    $('targets').innerHTML = '';   // spots only appear once the ball is live
+    buildPrepitch(sc);
+    drawReference(sc);
+
+    const isQuiz = mode === 'quiz';
+    $('quizUI').style.display = isQuiz ? '' : 'none';
+    $('prepitch').style.display = isQuiz ? '' : 'none';
+    $('readUI').style.display = 'none';
+    $('refpanel').style.display = isQuiz ? 'none' : 'block';
+  }
+
+  function setDiff(d) {
+    readScale = d === 'real' ? 1.05 : 1.75;
+    $('diffRookie').setAttribute('aria-pressed', String(d === 'rookie'));
+    $('diffReal').setAttribute('aria-pressed', String(d === 'real'));
+  }
+
+  $('playbtn').addEventListener('click', startPlay);
+  $('collapseBtn').addEventListener('click', () => {
+    panelCollapsed = !panelCollapsed;
+    $('prepitch').classList.toggle('collapsed', panelCollapsed);
+    $('collapseBtn').setAttribute('aria-expanded', String(!panelCollapsed));
+  });
+  $('diffRookie').addEventListener('click', () => setDiff('rookie'));
+  $('diffReal').addEventListener('click', () => setDiff('real'));
+  $('next').addEventListener('click', () => { idx += 1; if (idx >= order.length) { buildOrder(); idx = 0; } render(); window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); });
+  $('replay').addEventListener('click', () => unfold(true));
+  // ---- gear popover: holds the position filter + Quiz/Reference mode ----
+  function closeGear() { $('gearmenu').setAttribute('hidden', ''); $('gearBtn').setAttribute('aria-expanded', 'false'); }
+  $('gearBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const gm = $('gearmenu');
+    if (gm.hasAttribute('hidden')) { gm.removeAttribute('hidden'); $('gearBtn').setAttribute('aria-expanded', 'true'); }
+    else closeGear();
+  });
+  document.addEventListener('click', (e) => {
+    if (!$('gearmenu').hasAttribute('hidden') && !$('gearmenu').contains(e.target) && e.target !== $('gearBtn')) closeGear();
+  });
+
+  $('mQuiz').addEventListener('click', () => { mode = 'quiz'; $('mQuiz').setAttribute('aria-pressed', 'true'); $('mRef').setAttribute('aria-pressed', 'false'); closeGear(); render(); });
+  $('mRef').addEventListener('click', () => { mode = 'ref'; $('mRef').setAttribute('aria-pressed', 'true'); $('mQuiz').setAttribute('aria-pressed', 'false'); closeGear(); render(); });
+
+  // ---- position filter: drill one position at a time ----
+  const posbar = $('posbar');
+  POSITIONS.forEach((p) => {
+    const b = document.createElement('button');
+    b.textContent = p; b.setAttribute('aria-pressed', String(p === posFilter));
+    b.addEventListener('click', () => {
+      posFilter = p; idx = 0; buildOrder();
+      [...posbar.children].forEach((c) => c.setAttribute('aria-pressed', String(c.textContent === p)));
+      closeGear();
+      render();
+    });
+    posbar.appendChild(b);
+  });
+
+  document.getElementById('fieldgfx').innerHTML = fieldGraphics();
+  buildOrder();
+  render();
+
+  /* ---- DEV "camera" controls (preview only): live tilt / pan / zoom /
+     perspective on the field SVG, so the look can be dialed in by hand. The
+     values shown get baked into svg.field's CSS for release, then this whole
+     block is removed. Toggle with the 🎥 button (upper-right, over the sky). ---- */
+  (function cameraControls() {
+    const field = document.getElementById('field');
+    const DEFAULTS = { tilt: 18, persp: 940, zoom: 1, panX: 0, panY: 0, originY: 78 };
+    const cam = { ...DEFAULTS };
+    const rows = [
+      ['tilt', 0, 45, 1, '°', 'tilt back'],
+      ['persp', 300, 1600, 20, 'px', 'perspective'],
+      ['zoom', 0.5, 2, 0.02, '×', 'zoom'],
+      ['panX', -160, 160, 2, 'px', 'pan ←→'],
+      ['panY', -220, 220, 2, 'px', 'pan ↑↓'],
+      ['originY', 30, 100, 1, '%', 'pivot Y'],
+    ];
+    const cssFor = () => `transform: translateX(-50%) translate(${cam.panX}px, ${cam.panY}px) perspective(${cam.persp}px) rotateX(${cam.tilt}deg) scale(${cam.zoom}); transform-origin: 50% ${cam.originY}%;`;
+    const st = document.createElement('style');
+    st.textContent = `
+      #camtoggle{position:fixed;top:92px;right:12px;z-index:70;width:40px;height:40px;border-radius:50%;border:1px solid #2a3a55;background:#14233f;color:#fff;font-size:18px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+      #campanel{position:fixed;top:140px;right:12px;z-index:70;width:238px;background:rgba(11,18,32,.97);border:1px solid #2a3a55;border-radius:12px;padding:10px 12px;font:11px/1.35 'Bahnschrift','Arial Narrow',sans-serif;color:#cfe0f5;box-shadow:0 10px 34px rgba(0,0,0,.55)}
+      #campanel .camttl{font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7fd0a3;font-size:10px;margin-bottom:6px}
+      #campanel label{display:grid;grid-template-columns:58px 1fr 44px;align-items:center;gap:6px;margin:5px 0}
+      #campanel label>span{color:#93a7c4}
+      #campanel input[type=range]{width:100%;accent-color:#26c565}
+      #campanel b{text-align:right;font-variant-numeric:tabular-nums;color:#e8c24a}
+      #campanel .camrow{display:flex;gap:6px;margin-top:9px}
+      #campanel button{flex:1;background:#1c2f4f;color:#fff;border:1px solid #2a3a55;border-radius:6px;padding:6px;cursor:pointer;font:inherit}
+      #camout{margin:8px 0 0;padding:6px 7px;background:#060b16;border-radius:6px;white-space:pre-wrap;word-break:break-all;font:9px/1.4 ui-monospace,monospace;color:#8ea6c8;max-height:92px;overflow:auto}`;
+    document.head.appendChild(st);
+    const panel = document.createElement('div'); panel.id = 'campanel'; panel.hidden = true;
+    panel.innerHTML = '<div class="camttl">🎥 Field camera</div>' + rows.map(([k, min, max, step, unit, lbl]) =>
+      `<label><span>${lbl}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${cam[k]}"><b id="v-${k}">${cam[k]}${unit}</b></label>`
+    ).join('') + '<div class="camrow"><button id="camreset">reset</button><button id="camcopy">copy css</button></div><pre id="camout"></pre>';
+    document.body.appendChild(panel);
+    const out = panel.querySelector('#camout');
+    const apply = () => {
+      field.style.transformOrigin = `50% ${cam.originY}%`;
+      field.style.transform = `translateX(-50%) translate(${cam.panX}px, ${cam.panY}px) perspective(${cam.persp}px) rotateX(${cam.tilt}deg) scale(${cam.zoom})`;
+      out.textContent = cssFor();
+    };
+    const syncLabel = (k) => { const unit = rows.find(r => r[0] === k)[4]; panel.querySelector('#v-' + k).textContent = cam[k] + unit; };
+    panel.querySelectorAll('input[type=range]').forEach((inp) => {
+      inp.addEventListener('input', () => { const k = inp.dataset.k; cam[k] = parseFloat(inp.value); syncLabel(k); apply(); });
+    });
+    panel.querySelector('#camreset').addEventListener('click', () => {
+      Object.assign(cam, DEFAULTS);
+      panel.querySelectorAll('input[type=range]').forEach((inp) => { inp.value = cam[inp.dataset.k]; syncLabel(inp.dataset.k); });
+      apply();
+    });
+    panel.querySelector('#camcopy').addEventListener('click', (e) => { if (navigator.clipboard) { navigator.clipboard.writeText(cssFor()); e.target.textContent = 'copied!'; setTimeout(() => { e.target.textContent = 'copy css'; }, 1200); } });
+    const btn = document.createElement('button'); btn.id = 'camtoggle'; btn.textContent = '🎥'; btn.title = 'Field camera controls';
+    btn.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+    document.body.appendChild(btn);
+    apply();
+  })();
+})();
+</script>

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Defensive IQ — overlay layout (B)</title>
+<style>
+  :root{
+    --sky:#0b1120; --sky2:#0e1730; --panel:#0f1a30; --panel2:#14233f;
+    --line:rgba(255,255,255,.08); --ink:#eaf1fb; --muted:#93a6c4; --muted2:#64789a;
+    --accent:#26c565; --flame:#f97316; --gold:#fbbf24; --wrong:#ef4444;
+    --disp:'Bahnschrift','Roboto Condensed','Arial Narrow',system-ui,sans-serif;
+    --body:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#070b16;color:var(--ink);font-family:var(--body);padding:22px;}
+  h1{font-family:var(--disp);text-transform:uppercase;letter-spacing:.04em;font-size:18px;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px;max-width:720px;line-height:1.5;}
+  .row{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap;}
+  .col{width:320px;}
+  .cap{font-family:var(--disp);text-transform:uppercase;letter-spacing:.05em;font-size:13px;color:var(--gold);margin:0 0 8px;}
+  .cap small{display:block;color:var(--muted);font-family:var(--body);text-transform:none;letter-spacing:0;font-size:11.5px;margin-top:2px;}
+  .disp{font-family:var(--disp);}
+  .num{font-family:var(--disp);font-variant-numeric:tabular-nums;}
+
+  .phone{width:320px;height:660px;border-radius:26px;overflow:hidden;position:relative;border:1px solid #223;box-shadow:0 20px 50px -20px #000;background:var(--sky);}
+  .field{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(80% 55% at 50% 12%,rgba(150,190,220,.10),transparent 60%),var(--sky);}
+  .field svg{width:100%;height:auto;}
+
+  .pip{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.16);display:inline-block;}
+  .pip.b{background:var(--gold);} .pip.s{background:var(--wrong);} .pip.o{background:var(--flame);}
+
+  /* ---- top scoreboard, floated ON the field ---- */
+  .sb{position:absolute;top:8px;left:8px;right:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:7px 12px;border-radius:13px;font-family:var(--disp);
+    background:linear-gradient(180deg,rgba(10,17,30,.82),rgba(10,17,30,.62));backdrop-filter:blur(4px);
+    border:1px solid rgba(255,255,255,.10);box-shadow:0 8px 22px -12px #000;}
+  .sb .iq{color:var(--gold);font-size:21px;line-height:1;}
+  .sb .iq b{display:block;font-size:8px;color:var(--muted2);letter-spacing:.14em;font-weight:400;}
+  .sb .mid{display:flex;align-items:center;gap:9px;font-size:13px;}
+  .sb .mid .grp{display:flex;align-items:center;gap:3px;}
+  .sb .mid .sk{font-size:8px;color:var(--muted2);letter-spacing:.1em;}
+  .sb .mid .ar{color:var(--accent);}
+  .sb .stk{color:var(--flame);font-size:16px;}
+
+  /* ---- tiny control chips, floated just under the scoreboard ---- */
+  .fctrl{position:absolute;top:52px;left:8px;right:8px;display:flex;gap:6px;justify-content:center;}
+  .fctrl .chip{border:1px solid rgba(255,255,255,.10);border-radius:9px;padding:5px 9px;font-family:var(--disp);
+    text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;color:var(--muted);
+    background:linear-gradient(180deg,rgba(10,17,30,.8),rgba(10,17,30,.55));backdrop-filter:blur(4px);}
+  .fctrl .chip.pos.on{background:var(--flame);color:#1a0e02;border-color:transparent;}
+  .fctrl .chip.mode.on{background:var(--accent);color:#05210f;border-color:transparent;}
+  .fctrl .sp{flex:1;}
+
+  /* ---- bottom coaching panel, floated ON the field ---- */
+  .ovl{position:absolute;left:8px;right:8px;bottom:8px;border-radius:15px;padding:11px 13px 13px;
+    background:linear-gradient(180deg,rgba(12,20,35,.80),rgba(12,20,35,.95));backdrop-filter:blur(4px);
+    border:1px solid rgba(251,191,36,.26);box-shadow:0 -8px 30px -14px #000;}
+  .call{text-align:center;font-family:var(--disp);text-transform:uppercase;letter-spacing:.04em;font-size:14px;color:var(--gold);margin-bottom:9px;text-wrap:balance;}
+  .brief{list-style:none;margin:0 0 11px;padding:0;display:flex;flex-direction:column;gap:8px;}
+  .brief li{font-size:12px;line-height:1.42;color:var(--muted);}
+  .brief .lab{font-family:var(--disp);text-transform:uppercase;letter-spacing:.07em;font-size:10px;margin-right:5px;}
+  .brief .s .lab{color:var(--muted2);} .brief .p .lab{color:var(--gold);} .brief .r .lab{color:var(--accent);}
+  .play{width:100%;border:0;padding:12px;border-radius:11px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.05em;font-size:15px;
+    background:linear-gradient(180deg,#34d374,var(--accent));color:#05210f;}
+
+  /* ---- during-play slim read bar ---- */
+  .readbar{position:absolute;left:8px;right:8px;bottom:10px;text-align:center;}
+  .readbar .t{font-family:var(--disp);text-transform:uppercase;letter-spacing:.08em;font-size:13px;color:var(--flame);margin-bottom:7px;
+    text-shadow:0 1px 6px #000;}
+  .readbar .bar{height:8px;border-radius:5px;background:rgba(0,0,0,.5);overflow:hidden;border:1px solid rgba(255,255,255,.12);}
+  .readbar .fill{height:100%;width:62%;background:var(--accent);}
+</style>
+</head>
+<body>
+  <h1>Option B+ — field fills the screen, scoreboard & panel floated on it</h1>
+  <p class="sub">The whole screen is the field. The scoreboard floats on top, the position / mode chips tuck just under it, and the coaching panel floats on the bottom. When you hit Play the panel clears to a slim read bar so the full field is live for the play.</p>
+
+  <div class="row">
+
+    <!-- ===== BEFORE THE PITCH ===== -->
+    <div class="col">
+      <div class="cap">Before the pitch (setup) <small>read the situation → tap Play</small></div>
+      <div class="phone">
+        <div class="field" id="fieldA"></div>
+        <div class="sb">
+          <div class="iq num"><b>DEF IQ</b>120</div>
+          <div class="mid">
+            <span class="grp"><span class="ar">▲</span>6th</span>
+            <span class="grp"><span class="sk">B</span><span class="pip b"></span><span class="pip"></span></span>
+            <span class="grp"><span class="sk">S</span><span class="pip s"></span><span class="pip s"></span></span>
+            <span class="grp"><span class="sk">O</span><span class="pip o"></span><span class="pip"></span></span>
+            <span class="num">3–3</span>
+          </div>
+          <div class="stk num">0🔥</div>
+        </div>
+        <div class="fctrl">
+          <span class="chip pos on">3B</span><span class="chip pos">LF</span><span class="chip pos">RF</span><span class="chip pos">ALL</span>
+          <span class="sp"></span>
+          <span class="chip mode on">Quiz</span><span class="chip mode">Ref</span>
+        </div>
+        <div class="ovl">
+          <div class="call">1 Out · Runner on 2nd · Stop the Run</div>
+          <ul class="brief">
+            <li class="s"><span class="lab">Situation</span>Runner on 2nd, in scoring position — a hit to left likely scores him.</li>
+            <li class="p"><span class="lab">Priority</span>First, try to throw the run out at the plate. If not, hold the hitter to a single.</li>
+            <li class="r"><span class="lab">Your read</span>Ball to left, throw's coming home — what's the third baseman's job?</li>
+          </ul>
+          <button class="play">▶ Play the ball</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DURING THE PLAY ===== -->
+    <div class="col">
+      <div class="cap">During the play (Play pressed) <small>panel clears — full field is live, spots pulse, clock runs</small></div>
+      <div class="phone">
+        <div class="field" id="fieldB"></div>
+        <div class="sb">
+          <div class="iq num"><b>DEF IQ</b>120</div>
+          <div class="mid">
+            <span class="grp"><span class="ar">▲</span>6th</span>
+            <span class="grp"><span class="sk">B</span><span class="pip b"></span><span class="pip"></span></span>
+            <span class="grp"><span class="sk">S</span><span class="pip s"></span><span class="pip s"></span></span>
+            <span class="grp"><span class="sk">O</span><span class="pip o"></span><span class="pip"></span></span>
+            <span class="num">3–3</span>
+          </div>
+          <div class="stk num">0🔥</div>
+        </div>
+        <div class="readbar">
+          <div class="t">Read it — get to your spot!</div>
+          <div class="bar"><div class="fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  function field(withSpots){
+    const spots = withSpots ? `
+      <g>
+        <circle cx="23" cy="66" r="3.4" fill="rgba(9,20,14,.5)" stroke="#26c565" stroke-width="1"/>
+        <circle cx="23" cy="66" r="3.4" fill="none" stroke="#26c565" stroke-width=".7" opacity=".5"/>
+        <circle cx="40" cy="80" r="3.4" fill="rgba(9,20,14,.5)" stroke="#26c565" stroke-width="1"/>
+        <circle cx="40" cy="80" r="3.4" fill="none" stroke="#26c565" stroke-width=".7" opacity=".5"/>
+        <circle cx="50" cy="42" r="3.4" fill="rgba(9,20,14,.5)" stroke="#26c565" stroke-width="1"/>
+        <circle cx="50" cy="42" r="3.4" fill="none" stroke="#26c565" stroke-width=".7" opacity=".5"/>
+      </g>
+      <line x1="50" y1="86" x2="41" y2="66" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".55"/>
+      <circle cx="41" cy="66" r="1.5" fill="#fff"/>` : '';
+    return `<svg viewBox="0 0 100 118" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="g" cx="50%" cy="18%" r="90%"><stop offset="0%" stop-color="#27603f"/><stop offset="60%" stop-color="#1a4632"/><stop offset="100%" stop-color="#12331f"/></radialGradient>
+        <linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#b96c40"/><stop offset="100%" stop-color="#7d4526"/></linearGradient>
+      </defs>
+      <path d="M50 98 L10 58 L15 40 L31 24 L52 19 L72 27 L87 47 L90 58 Z" fill="url(#g)"/>
+      <path d="M10 58 L15 40 L31 24 L52 19 L72 27 L87 47 L90 58" fill="none" stroke="#0a1f14" stroke-width="2.2" stroke-linejoin="round"/>
+      <polygon points="50,98 77,71 50,44 23,71" fill="url(#c)"/>
+      <polygon points="50,90 70,71 50,52 30,71" fill="url(#g)"/>
+      <circle cx="50" cy="71" r="4.6" fill="url(#c)"/>
+      <line x1="50" y1="98" x2="90" y2="58" stroke="#e8eef5" stroke-width=".6" opacity=".8"/>
+      <line x1="50" y1="98" x2="10" y2="58" stroke="#e8eef5" stroke-width=".6" opacity=".8"/>
+      ${[['CF',52,29],['LF',28,38],['RF',74,38],['SS',38,56],['2B',62,56],['1B',72,66],['P',50,71],['C',50,106]].map(([k,x,y])=>
+        `<circle cx="${x}" cy="${y}" r="2.4" fill="#0c1a12" stroke="#8fb6a0" stroke-width=".5" opacity=".6"/><text x="${x}" y="${y+0.9}" text-anchor="middle" font-size="2.4" fill="#cfe3d6" font-family="Bahnschrift,sans-serif">${k}</text>`).join('')}
+      <circle cx="27" cy="66" r="3" fill="#f97316" stroke="#2a1503" stroke-width=".6"/><text x="27" y="66.9" text-anchor="middle" font-size="2.6" fill="#1a0e02" font-family="Bahnschrift,sans-serif">3B</text>
+      ${spots}
+    </svg>`;
+  }
+  document.getElementById('fieldA').innerHTML = field(false);
+  document.getElementById('fieldB').innerHTML = field(true);
+</script>
+</body>
+</html>

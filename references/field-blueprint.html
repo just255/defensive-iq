@@ -1,0 +1,131 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Field alignment blueprint — apex datum</title>
+<style>
+  :root{ --ink:#14203a; --grass:#2f7d4f; --grassL:#3c9160; --dirt:#c8814f; --dirtE:#a5673b; --chalk:#ffffff; --dim:#c0392b; --paper:#f5f1e6; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9e4d6;color:var(--ink);font:14px/1.5 "Segoe UI",system-ui,sans-serif;padding:20px}
+  h1{font-size:18px;margin:0 0 2px} .sub{color:#5a6478;margin:0 0 16px;font-size:13px}
+  .wrap{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .card{background:var(--paper);border:1px solid #d3cbb5;border-radius:8px;padding:14px 14px 8px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .card h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#6b7488;margin:0 0 8px}
+  svg{display:block} text{font-family:"Segoe UI",sans-serif}
+  .legend{font-size:12px;color:#5a6478;margin-top:8px}
+  .legend b{color:var(--dim)}
+  .dimtxt{fill:var(--dim);font-size:11px;font-weight:600}
+  .lbl{fill:var(--ink);font-size:11px}
+  .lblw{fill:#fff;font-size:10.5px;font-weight:600}
+</style></head>
+<body>
+<h1>Field alignment blueprint — single datum = home‑plate apex</h1>
+<p class="sub">Top‑down, real feet (MLB 90′). Everything measured from the apex (0,0). This is the geometry I'll re‑found the 2.5D field on.</p>
+<div class="wrap">
+  <div class="card"><h2>Infield overview — measured from apex</h2><svg id="overview" width="620" height="640"></svg>
+    <div class="legend"><b>red</b> = measurement from the apex datum · green = grass · tan = infield skin/dirt · white = chalk</div>
+  </div>
+  <div class="card"><h2>Home‑plate detail — where foul lines + plate + boxes all meet the apex</h2><svg id="detail" width="440" height="470"></svg>
+    <div class="legend">The two 12″ plate edges lie exactly on the foul lines; the foul lines start at the apex, not at the box.</div>
+  </div>
+</div>
+<script>
+const SQRT2 = Math.SQRT2;
+// ---- geometry, real feet, apex at (0,0); +x toward 1B side (right), +y toward center field ----
+const base = 90, d = base/SQRT2;              // 63.64
+const BASES = { H:[0,0], '1B':[d,d], '2B':[0,2*d], '3B':[-d,d] };
+const moundC = [0, 60.5 - 1.5], moundR = 9;   // circle centred 18" in front of the rubber
+const rubberFront = 60.5;
+// home plate: apex at origin, pointing toward the catcher (-y); 17" front edge, 8.5" sides, 12" edges on the foul lines
+const PLATE = [[0,0],[0.708,0.708],[0.708,1.417],[-0.708,1.417],[-0.708,0.708]];
+const plateMid = 0.85;                         // longitudinal centre of the plate (for box centring)
+// batter's boxes: 4x6 ft, inner edge 6" off the plate, centred lengthwise on the plate centre
+const bboxIn = 0.708+0.5, bboxOut = bboxIn+4, bboxF = plateMid+3, bboxB = plateMid-3;
+const BBOX = sx => [[sx*bboxIn,bboxB],[sx*bboxOut,bboxB],[sx*bboxOut,bboxF],[sx*bboxIn,bboxF]];
+// catcher's box: 43" wide (±1.79), open toward plate, from batter's-box back to 8' behind home
+const CBOX = [[1.79,bboxB],[1.79,-8],[-1.79,-8],[-1.79,bboxB]];
+const homeCircR = 13;                          // 26' diameter dirt circle
+const cutoutR = 13;                            // 13' base-cutout radius (grass infield corners)
+const grassArcR = 95;                          // infield grass line = 95' radius from the mound
+const grassOff = 3;                            // grass line sits 3' in from the base lines
+
+function draw(svgId, cx, cy, s, opts){
+  const svg = document.getElementById(svgId);
+  const X = x => cx + x*s, Y = y => cy - y*s;
+  const P = p => X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1);
+  const poly = (pts,fill,stroke,sw,extra='') => `<polygon points="${pts.map(P).join(' ')}" fill="${fill}" stroke="${stroke||'none'}" stroke-width="${sw||0}" ${extra}/>`;
+  const line = (a,b,stroke,sw,extra='') => `<line x1="${X(a[0]).toFixed(1)}" y1="${Y(a[1]).toFixed(1)}" x2="${X(b[0]).toFixed(1)}" y2="${Y(b[1]).toFixed(1)}" stroke="${stroke}" stroke-width="${sw}" ${extra}/>`;
+  const circ = (c,r,fill,stroke,sw,extra='') => `<circle cx="${X(c[0]).toFixed(1)}" cy="${Y(c[1]).toFixed(1)}" r="${(r*s).toFixed(1)}" fill="${fill}" stroke="${stroke||'none'}" stroke-width="${sw||0}" ${extra}/>`;
+  const txt = (x,y,t,cls='lbl',anc='middle') => `<text x="${X(x).toFixed(1)}" y="${Y(y).toFixed(1)}" class="${cls}" text-anchor="${anc}">${t}</text>`;
+  let g = '';
+  const foulEnd = opts.foulTo || 150;
+  if(opts.overview){
+    // grass background
+    g += `<rect x="0" y="0" width="620" height="640" fill="var(--grass)"/>`;
+    // infield skin: fan from apex bounded by the 95' arc (approx as a filled region)
+    const arcPts=[]; for(let a=-46;a<=46;a+=2){ const rad=(90-a)*Math.PI/180; arcPts.push([moundC[0]+grassArcR*Math.cos(rad), moundC[1]+grassArcR*Math.sin(rad)]);}
+    g += poly([[0,0],[foulEnd,foulEnd],...arcPts.reverse(),[-foulEnd,foulEnd]].filter(p=>Math.hypot(p[0],p[1])<=200), 'var(--dirt)');
+    // simpler: skin = apex + foul corners + arc
+    g = `<rect x="0" y="0" width="620" height="640" fill="var(--grassL)"/>`;
+    g += poly([[0,0],[70,70],...arcPts,[-70,70]], 'var(--dirt)');
+    // infield grass diamond (3' inside base lines), corners cut by cutoutR near bases
+    const gd = grassOff*SQRT2; // offset along the perpendicular -> shrink the diamond
+    g += poly([[0,gd],[d-gd,d],[0,2*d-gd],[-(d-gd),d]], 'var(--grass)');
+    // home dirt circle
+    g += circ(BASES.H, homeCircR, 'var(--dirt)');
+    // base cutouts
+    for(const k of ['1B','2B','3B']) g += circ(BASES[k], 3.2, 'var(--dirt)');
+    // foul lines from APEX
+    g += line([0,0],[foulEnd,foulEnd],'var(--chalk)',2);
+    g += line([0,0],[-foulEnd,foulEnd],'var(--chalk)',2);
+    // mound
+    g += circ(moundC, moundR, 'var(--dirtE)','#8a5730',1);
+    // bases (diamonds, in fair)
+    const bh=1.0;
+    for(const k of ['1B','2B','3B']){ const c=BASES[k]; let cc=c;
+      if(k==='1B') cc=[c[0]-bh/2,c[1]+bh/2]; if(k==='3B') cc=[c[0]+bh/2,c[1]+bh/2];
+      g += poly([[cc[0],cc[1]+bh],[cc[0]+bh,cc[1]],[cc[0],cc[1]-bh],[cc[0]-bh,cc[1]]],'#fff'); }
+    // home plate
+    g += poly(PLATE,'#fff');
+    // ---- dimension callouts (red) ----
+    const dl=(a,b,t,ox=0,oy=0)=>{ let r=line(a,b,'var(--dim)',1,'stroke-dasharray="4 3"');
+      const mx=(a[0]+b[0])/2+ox, my=(a[1]+b[1])/2+oy; r+=txt(mx,my,t,'dimtxt'); return r; };
+    g += dl([0,0],[d,d],"90′",-6,6);
+    g += dl([d,d],[0,2*d],"90′",6,6);
+    g += dl([0,0],[0,2*d],"127′3⅜″",-16,0);
+    g += dl([0,0],moundC,"60′6″ (rubber)",14,0);
+    g += txt(moundC[0], moundC[1], "18′ mound", 'dimtxt');
+    g += txt(0, 2*d, "2B", 'lblw');
+    g += txt(d, d, "1B", 'lblw'); g += txt(-d, d, "3B", 'lblw');
+    // 95' arc callout
+    g += line(moundC,[grassArcR*Math.cos(50*Math.PI/180), moundC[1]+grassArcR*Math.sin(50*Math.PI/180)],'var(--dim)',1,'stroke-dasharray="4 3"');
+    g += txt(48, 118, "95′ R (grass line)", 'dimtxt','start');
+    g += txt(0,-6,"◤ APEX = datum (0,0)",'dimtxt');
+  } else {
+    // ---- home-plate detail ----
+    g += `<rect x="0" y="0" width="440" height="470" fill="var(--dirt)"/>`;
+    // home circle hint
+    g += circ(BASES.H, homeCircR, 'none','#8a5730',1,'stroke-dasharray="5 4"');
+    // foul lines from apex
+    g += line([0,0],[13,13],'var(--chalk)',3);
+    g += line([0,0],[-13,13],'var(--chalk)',3);
+    // batter boxes + catcher box
+    g += poly(BBOX(1),'none','var(--chalk)',2);
+    g += poly(BBOX(-1),'none','var(--chalk)',2);
+    g += `<polyline points="${CBOX.map(P).join(' ')}" fill="none" stroke="var(--chalk)" stroke-width="2"/>`;
+    // plate (filled) — apex at origin
+    g += poly(PLATE,'#fff','#cbd3e0',0.5);
+    // apex marker + crosshair
+    g += line([-1.6,0],[1.6,0],'var(--dim)',0.8); g += line([0,-1.6],[0,2.6],'var(--dim)',0.8);
+    g += circ([0,0],0.18,'var(--dim)');
+    // labels
+    g += txt(0,-2.4,"APEX (0,0) — foul lines start HERE",'dimtxt');
+    g += txt(0,1.05,'17″','lblw');
+    g += txt(3.2,3.4,"batter's box 4′×6′",'dimtxt','start');
+    g += txt(-3.2,3.4,"6″ off plate",'dimtxt','end');
+    g += txt(0,-6.6,"catcher's box 43″ (open U)",'dimtxt');
+    g += txt(9.2,9.6,"foul line",'dimtxt','start');
+  }
+  svg.innerHTML = g;
+}
+draw('overview', 310, 585, 620/210, {overview:true, foulTo:150});
+draw('detail', 220, 300, 440/28, {foulTo:13});
+</script>
+</body></html>

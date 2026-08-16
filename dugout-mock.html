@@ -1,0 +1,91 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Dugout mock</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b1220;overflow:hidden}
+  #stage{position:absolute;inset:0}
+  svg{width:100%;height:100%;display:block}
+  #ctl{position:fixed;top:10px;right:10px;width:210px;background:rgba(11,18,32,.95);border:1px solid #2a3a55;border-radius:10px;padding:10px;color:#cfe3d6;font:11px system-ui}
+  #ctl label{display:grid;grid-template-columns:64px 1fr 34px;gap:6px;align-items:center;margin:5px 0}
+  #ctl b{text-align:right}
+</style></head>
+<body>
+<div id="stage"><svg id="svg" viewBox="0 0 100 130" preserveAspectRatio="xMidYMid meet"></svg></div>
+<div id="ctl"></div>
+<script>
+  const VB={w:100,h:130};
+  const Y_NEAR=-60*0.28, S0=1.85, homeY0=VB.h-18;
+  const rawAt=(pt,cP,sP,k)=>{const z=pt.z||0,up=pt.y*cP+z*sP,conv=1/Math.max(1+(pt.y-Y_NEAR)*sP*k,0.05);return{X:pt.x*conv,Y:up*conv};};
+  function makeP(cam){
+    const p=cam.pitch*Math.PI/180,cP=Math.cos(p),sP=Math.sin(p),k=cam.k;
+    const y=(cam.yaw||0)*Math.PI/180,cY=Math.cos(y),sY=Math.sin(y);
+    const S=S0*cam.zoom,cx=VB.w/2+cam.panX,hy=homeY0+cam.panY,fwd=cam.fwd||0,camZ=cam.camZ||0,strafe=cam.strafe||0;
+    return pt=>{const px=pt.x-fwd*sY-strafe*cY,py=pt.y-fwd*cY+strafe*sY;const rx=px*cY-py*sY,ry=px*sY+py*cY;
+      const r=rawAt({x:rx,y:ry,z:(pt.z||0)-camZ},cP,sP,k);return{x:cx+r.X*S,y:hy-r.Y*S};};
+  }
+  // ---- DUGOUT geometry (world ft). Front (field side) at y=FY, back at y=FY+DEPTH. ----
+  const D={ len:70, depth:22, pit:5, stairRun:9, nSteps:3, railH:1.6, ent:9, wallT:1, roofH:4.5, roofT:0.6, FY:26,
+    col:{ grass1:'#2c6a46', grass2:'#20573a',
+          tread:'#b2b6bb', riser:'#8b9096', floor:'#9ea3a9',
+          back:'#6e747b', end:'#5f656d', cap:'#cfd3d7',
+          bench:'#7a5330', benchArm:'#5a3d24', rail:'#d7dbe0', railPost:'#b6bcc2',
+          roofTop:'#4a5058', roofUnder:'#30353b', roofEdge:'#23272d', post:'#565b62' } };
+  const cam={ pitch:67, yaw:22, k:0.006, zoom:0.55, fwd:-4, camZ:7, strafe:0, panX:0, panY:0 };
+
+  const svg=document.getElementById('svg');
+  function draw(){
+    const P=makeP(cam), Z=(p,z)=>({x:p.x,y:p.y,z});
+    const pj=p=>{const s=P(p);return s.x.toFixed(2)+','+s.y.toFixed(2);};
+    const path=pts=>'M '+pts.map(pj).join(' L ');
+    const quad=(pts,f)=>`<path d="${path(pts)} Z" fill="${f}"/>`;
+    const wall=(a,b,za,zb,f)=>quad([Z(a,za),Z(b,za),Z(b,zb),Z(a,zb)],f);
+    const hl=D.len/2, fy=D.FY, by=fy+D.depth, pd=D.pit, pit=-pd, run=D.stairRun;
+    const FN={x:-hl,y:fy}, FF={x:hl,y:fy}, BN={x:-hl,y:by}, BF={x:hl,y:by};
+    const line=(a,za,b,zb,w,f)=>{const A=P(Z(a,za)),B=P(Z(b,zb));return `<line x1="${A.x.toFixed(2)}" y1="${A.y.toFixed(2)}" x2="${B.x.toFixed(2)}" y2="${B.y.toFixed(2)}" stroke="${f}" stroke-width="${w}" stroke-linecap="round"/>`;};
+    // ground: big grass rect with a HOLE (even-odd) at the dugout footprint -> a real cutout
+    const G=180, gOuter=[{x:-G,y:-20},{x:G,y:-20},{x:G,y:110},{x:-G,y:110}];
+    let s='';
+    s+=`<rect x="0" y="0" width="100" height="130" fill="#0e1b12"/>`;
+    s+=`<path d="${path(gOuter)} Z ${path([FN,FF,BF,BN])} Z" fill="${D.col.grass1}" fill-rule="evenodd"/>`;
+    s+=`<path d="${path([{x:-G,y:20},{x:G,y:20},{x:G,y:55},{x:-G,y:55}])} Z ${path([FN,FF,BF,BN])} Z" fill="${D.col.grass2}" fill-rule="evenodd" opacity=".5"/>`;
+    // ---- sunken dugout with ROOF (back-to-front) ----
+    const wt=D.wallT, rH=D.roofH, rt=D.roofT;
+    s+=wall(BN,BF, pit, rH, D.col.back);                                 // back wall (pit -> roof)
+    s+=wall(FN,BN, pit, rH, D.col.end)+wall(FF,BF, pit, rH, D.col.end);   // end walls (pit -> roof)
+    const sN={x:-hl,y:fy+run}, sF={x:hl,y:fy+run};
+    s+=quad([Z(sN,pit),Z(sF,pit),Z(BF,pit),Z(BN,pit)], D.col.floor);     // pit floor
+    // FLOATING bench
+    const by0=by-1.5, by1=by-5.5, bz=pit+1.7, bx=hl-3;
+    s+=quad([Z({x:-bx,y:by0},bz),Z({x:bx,y:by0},bz),Z({x:bx,y:by1},bz),Z({x:-bx,y:by1},bz)], D.col.bench);
+    s+=wall({x:-bx,y:by1},{x:bx,y:by1}, bz-0.5, bz, D.col.benchArm);
+    // FRONT STAIRS
+    const N=D.nSteps;
+    for(let i=0;i<N;i++){ const zT=-pd*i/N, zB=-pd*(i+1)/N, yF=fy+run*i/N, yB=fy+run*(i+1)/N;
+      const aF={x:-hl,y:yF}, bF={x:hl,y:yF}, aB={x:-hl,y:yB}, bB={x:hl,y:yB};
+      s+=wall(aF,bF, zT, zB, D.col.riser);
+      s+=quad([Z(aF,zB),Z(bF,zB),Z(bB,zB),Z(aB,zB)], D.col.tread);
+    }
+    // wall thickness caps (grass-level rim)
+    s+=quad([Z(BN,0),Z(BF,0),Z({x:BF.x,y:BF.y-wt},0),Z({x:BN.x,y:BN.y-wt},0)], D.col.cap);
+    s+=quad([Z(FN,0),Z(BN,0),Z({x:BN.x+wt,y:BN.y},0),Z({x:FN.x+wt,y:FN.y},0)], D.col.cap);
+    s+=quad([Z(FF,0),Z(BF,0),Z({x:BF.x-wt,y:BF.y},0),Z({x:FF.x-wt,y:FF.y},0)], D.col.cap);
+    // low front metal railing (end gaps = entrances)
+    const rz=D.railH, ent=D.ent, rL={x:-hl+ent,y:fy}, rR={x:hl-ent,y:fy};
+    s+=line(rL,rz,rR,rz,0.9,D.col.rail)+line(rL,0,rL,rz,0.8,D.col.rail)+line(rR,0,rR,rz,0.8,D.col.rail);
+    for(let i=1;i<8;i++){const px={x:rL.x+(rR.x-rL.x)*i/8,y:fy}; s+=line(px,0,px,rz,0.5,D.col.railPost);}
+    // ROOF: front support posts + a slab WITH THICKNESS (underside, edge fascia, top). Covers the
+    // pit so you don't look straight down into it (fixes the see-through), open at the front.
+    s+=line(FN,0,FN,rH,1.1,D.col.post)+line(FF,0,FF,rH,1.1,D.col.post);
+    s+=quad([Z(FN,rH-rt),Z(FF,rH-rt),Z(BF,rH-rt),Z(BN,rH-rt)], D.col.roofUnder);         // underside
+    s+=wall(FN,FF, rH-rt, rH, D.col.roofEdge);                                            // front fascia (thickness)
+    s+=wall(FN,BN, rH-rt, rH, D.col.roofEdge)+wall(FF,BF, rH-rt, rH, D.col.roofEdge);     // side fascias
+    s+=quad([Z(FN,rH),Z(FF,rH),Z(BF,rH),Z(BN,rH)], D.col.roofTop);                        // top
+    svg.innerHTML=s;
+  }
+  // sliders
+  const ctl=document.getElementById('ctl');
+  const rows=[['pitch',20,85,1],['yaw',-60,60,1],['camZ',-10,40,1],['fwd',-40,60,1],['zoom',0.2,3,0.02],['k',0,0.02,0.001],['FY',5,60,1],['pit',1,8,0.5],['roofH',2,10,0.5],['depth',10,30,1],['len',30,110,2]];
+  rows.forEach(([key,mn,mx,st])=>{const src=(key in cam)?cam:D;const l=document.createElement('label');
+    l.innerHTML=`<span>${key}</span><input type=range min=${mn} max=${mx} step=${st} value=${src[key]}><b>${src[key]}</b>`;
+    const inp=l.querySelector('input'),b=l.querySelector('b');
+    inp.oninput=()=>{src[key]=parseFloat(inp.value);b.textContent=inp.value;draw();};ctl.appendChild(l);});
+  draw();
+</script></body></html>

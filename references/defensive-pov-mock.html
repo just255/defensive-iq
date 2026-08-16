@@ -1,0 +1,234 @@
+<title>Defensive IQ — POV (true perspective)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<style>
+  :root{ color-scheme:dark;
+    --sky:#0b1120; --panel:#0f1a30; --line:rgba(255,255,255,.08);
+    --ink:#eaf1fb; --muted:#93a6c4; --muted-2:#64789a;
+    --accent:#26c565; --flame:#f97316; --gold:#fbbf24; --wrong:#ef4444;
+    --disp:'Bahnschrift','Roboto Condensed','Arial Narrow',system-ui,sans-serif;
+    --body:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+  *{box-sizing:border-box;} html,body{margin:0;}
+  body{font-family:var(--body); color:var(--ink); background:var(--sky); min-height:100dvh; -webkit-tap-highlight-color:transparent;}
+  .wrap{max-width:460px; margin:0 auto; padding:14px 14px 36px;}
+  .disp{font-family:var(--disp); text-transform:uppercase; letter-spacing:.05em;}
+  .hud{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+  .hud .pos{display:flex; align-items:center; gap:10px;}
+  .pill{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;color:#1a0e02;
+    background:radial-gradient(circle at 35% 30%,#ffb56b,var(--flame)); box-shadow:0 0 20px -4px rgba(249,115,22,.7); font-family:var(--disp); font-size:18px;}
+  .hud .lab .k{font-size:9px;letter-spacing:.16em;color:var(--muted-2);} .hud .lab .v{font-size:14px;font-weight:600;}
+  .tag{font-family:var(--disp); font-size:10px; letter-spacing:.12em; color:var(--gold); border:1px solid rgba(251,191,36,.4); border-radius:999px; padding:4px 9px;}
+  .situation{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;margin-bottom:12px;border:1px solid var(--line);border-radius:12px;background:#0c1526;font-family:var(--disp);}
+  .situation .sk{font-size:9px;letter-spacing:.12em;color:var(--muted-2);} .situation .inn .a{color:var(--accent);}
+  .pip{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.14);display:inline-block;margin-left:2px;} .pip.b{background:var(--gold);} .pip.s{background:var(--wrong);}
+
+  .stage{position:relative; border-radius:18px; overflow:hidden; border:1px solid var(--line); background:#08101f;}
+  svg.scene{display:block; width:100%; height:auto;}
+  .lights{position:absolute; top:5px; left:0; right:0; display:flex; justify-content:space-around; padding:0 26px; pointer-events:none;}
+  .lights span{width:15px;height:5px;border-radius:2px;background:#e9f2ff;box-shadow:0 0 12px 2px rgba(220,235,255,.7);opacity:.8;}
+  .viewtag{position:absolute; left:10px; bottom:9px; font-family:var(--disp); font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.6);}
+
+  .prompt{text-align:center; font-family:var(--disp); letter-spacing:.1em; font-size:12px; color:var(--muted); margin:14px 0 8px;}
+  .answers{display:flex; flex-direction:column; gap:8px;}
+  .ans{display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:15px; font-weight:600; cursor:pointer; text-align:left;}
+  .ans .b{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-family:var(--disp);background:#14233c;color:var(--muted);border:1px solid var(--line);}
+  .ans[data-s="correct"]{border-color:var(--accent);background:rgba(38,197,101,.14);} .ans[data-s="correct"] .b{background:var(--accent);color:#05210f;}
+  .ans[data-s="wrong"]{border-color:var(--wrong);background:rgba(239,68,68,.12);} .ans[data-s="wrong"] .b{background:var(--wrong);color:#2a0606;}
+  .fb{margin-top:12px;border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--panel);display:none;} .fb.show{display:block;}
+  .fb .v{font-family:var(--disp);font-size:18px;} .fb.good .v{color:var(--accent);} .fb.bad .v{color:var(--wrong);}
+  .fb .r{margin-top:6px;font-size:14px;line-height:1.45;}
+  .note{margin-top:16px; text-align:center; font-size:11px; color:var(--muted-2); line-height:1.5;}
+  @media (prefers-reduced-motion: reduce){ .ballmove{transition:none !important;} }
+</style>
+
+<div class="wrap">
+  <div class="hud">
+    <div class="pos"><div class="pill">3B</div><div class="lab"><div class="k disp">Your view</div><div class="v">Third base</div></div></div>
+    <span class="tag">POV · TRUE PERSPECTIVE</span>
+  </div>
+  <div class="situation">
+    <span class="inn disp"><span class="a">▲</span> 3RD</span>
+    <span class="disp"><span class="sk">B</span><span class="pip b"></span><span class="pip"></span><span class="pip"></span></span>
+    <span class="disp"><span class="sk">S</span><span class="pip s"></span><span class="pip"></span></span>
+    <span class="disp"><span class="sk">O</span><span class="pip"></span><span class="pip"></span></span>
+    <span class="disp">2 – 3</span>
+  </div>
+
+  <div class="stage">
+    <div class="lights"><span></span><span></span><span></span><span></span><span></span></div>
+    <svg class="scene" id="scene" viewBox="0 0 100 62" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="viewtag disp">3B POV</div>
+  </div>
+
+  <div class="prompt" id="prompt">The bunt is rolling up the line toward you. What do you do?</div>
+  <div class="answers" id="answers"></div>
+  <div class="fb" id="fb"><div class="v" id="fbv"></div><div class="r" id="fbr"></div></div>
+
+  <p class="note">True‑perspective POV prototype — a projected ground‑plane camera behind third base. Tune target: readable depth, ball comes at you, teammates ahead.</p>
+</div>
+
+<script>
+(function(){
+  // ---- vector helpers ----
+  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]], dot=(a,b)=>a[0]*b[0]+a[1]*b[1];
+  const norm=(a)=>{const m=Math.hypot(a[0],a[1])||1;return[a[0]/m,a[1]/m];};
+
+  // ---- world (top-down field units; y increases toward the outfield-away... here home is y=98 bottom) ----
+  const HOME=[50,98], B1=[77,71], B2=[50,44], B3=[23,71], MOUND=[50,71];
+  const POLE_L=[10,58], POLE_R=[90,58];
+  const POS={ P:[50,71], C:[50,107], '1B':[72,66], '2B':[62,56], SS:[38,56], '3B':[27,66], LF:[28,38], CF:[52,29], RF:[74,38] };
+
+  // ---- camera: FIRST-PERSON, right at the third baseman's eyes, looking in at the plate ----
+  const CAM = { pos:[12, 58], aim:[50, 97], focal:27, h:6.5, horizon:24, cx:50, near:1.5 };
+  function makeCam(c){ const f=norm(sub(c.aim,c.pos)); return {...c, f, r:[f[1],-f[0]]}; }
+  const cam = makeCam(CAM);
+  function project(p){
+    const rel=sub(p,cam.pos), fwd=dot(rel,cam.f), rt=dot(rel,cam.r);
+    if(fwd<cam.near) return null;
+    return { x:cam.cx+cam.focal*rt/fwd, y:cam.horizon+cam.focal*cam.h/fwd, s:cam.focal/fwd, fwd };
+  }
+
+  const NS='http://www.w3.org/2000/svg';
+  const scene=document.getElementById('scene');
+  const mk=(n,a={})=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+  function polyProj(pts,attrs){ const P=pts.map(project); if(P.some(p=>!p))return null; return mk('polygon',{points:P.map(p=>p.x.toFixed(2)+','+p.y.toFixed(2)).join(' '),...attrs}); }
+  function lineProj(a,b,attrs){ const A=project(a),B=project(b); if(!A||!B)return null; return mk('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,...attrs}); }
+
+  function drawBaseMarker(p){ const P=project(p); if(!P)return; const s=Math.min(5,Math.max(1.1,P.s*2.2));
+    scene.appendChild(mk('rect',{x:P.x-s/2,y:P.y-s/2,width:s,height:s,rx:.4,fill:'#f4f7fb',transform:`rotate(45 ${P.x} ${P.y})`})); }
+
+  function render(){
+    scene.innerHTML='';
+    // sky + stands
+    scene.appendChild(mk('rect',{x:0,y:0,width:100,height:cam.horizon,fill:'#0c1730'}));
+    scene.appendChild(mk('rect',{x:0,y:0,width:100,height:cam.horizon,fill:'url(#stands)'}));
+    // grass fills everything below horizon
+    scene.appendChild(mk('rect',{x:0,y:cam.horizon,width:100,height:100-cam.horizon,fill:'url(#grass)'}));
+
+    // outfield wall (irregular) far away
+    const wall=[POLE_L,[15,40],[31,24],[52,19],[72,27],[87,47],POLE_R];
+    const wp=wall.map(project);
+    if(wp.every(Boolean)){ let d='M'+wp.map(p=>p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' L');
+      scene.appendChild(mk('path',{d,fill:'none',stroke:'#0a1f14','stroke-width':1.1,'stroke-linejoin':'round'})); }
+
+    // infield dirt (projected diamond)
+    const dirt=polyProj([HOME,B1,B2,B3],{fill:'url(#clay)'}); if(dirt)scene.appendChild(dirt);
+    // infield grass inset
+    const inset=polyProj([[50,90],[70,71],[50,52],[30,71]],{fill:'url(#grass2)'}); if(inset)scene.appendChild(inset);
+    // mound
+    const m=project(MOUND); if(m)scene.appendChild(mk('ellipse',{cx:m.x,cy:m.y,rx:m.s*4,ry:m.s*2.4,fill:'url(#clay)'}));
+    // foul lines + base path
+    [lineProj(HOME,POLE_L,{stroke:'#e8eef5','stroke-width':.5,opacity:.8}),
+     lineProj(HOME,POLE_R,{stroke:'#e8eef5','stroke-width':.5,opacity:.8})].forEach(l=>l&&scene.appendChild(l));
+    const bp=polyProj([HOME,B1,B2,B3],{fill:'none',stroke:'#e8eef5','stroke-width':.35,opacity:.45}); if(bp)scene.appendChild(bp);
+    [B1,B2,B3].forEach(drawBaseMarker);
+    // home plate
+    const h=project(HOME); if(h){const s=Math.min(6,Math.max(1.4,h.s*2.6));
+      scene.appendChild(mk('path',{d:`M${h.x-s*.5} ${h.y-s*.4} L${h.x+s*.5} ${h.y-s*.4} L${h.x+s*.5} ${h.y} L${h.x} ${h.y+s*.5} L${h.x-s*.5} ${h.y} Z`,fill:'#f4f7fb'})); }
+
+    // players (draw far→near). skip 3B (you) drawn last big.
+    const others=Object.keys(POS).filter(k=>k!=='3B').map(k=>({k,p:POS[k],pr:project(POS[k])})).filter(o=>o.pr).sort((a,b)=>b.pr.fwd-a.pr.fwd);
+    others.forEach(o=>{ const r=Math.min(5.5,Math.max(1.4,o.pr.s*2.6));
+      const g=mk('g',{});
+      g.appendChild(mk('circle',{cx:o.pr.x,cy:o.pr.y,r,fill:'#0c1a12',stroke:'#8fb6a0','stroke-width':.4}));
+      const t=mk('text',{x:o.pr.x,y:o.pr.y+r*.42,'text-anchor':'middle','font-size':r*.9,fill:'#cfe3d6','font-family':"'Bahnschrift','Arial Narrow',sans-serif"}); t.textContent=o.k;
+      g.appendChild(t); scene.appendChild(g);
+    });
+    // (moving actors — batter, runner, ball — are drawn + animated separately)
+
+    // First person: you ARE the camera, so no marker for yourself.
+    // A hint of your glove in the lower-left foreground for immersion.
+    scene.appendChild(mk('path',{d:'M-4 101 Q 14 86 30 101 Z',fill:'#0c1a12',opacity:.9}));
+    scene.appendChild(mk('ellipse',{cx:12,cy:93,rx:9,ry:6,fill:'#3a2a16',stroke:'#20160b','stroke-width':.6,opacity:.95}));
+
+    // defs
+    const defs=mk('defs',{});
+    defs.innerHTML=`
+      <radialGradient id="grass" cx="50%" cy="120%" r="130%"><stop offset="0%" stop-color="#2c6a46"/><stop offset="55%" stop-color="#1c4a32"/><stop offset="100%" stop-color="#123320"/></radialGradient>
+      <linearGradient id="grass2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#245239"/><stop offset="1" stop-color="#173a26"/></linearGradient>
+      <linearGradient id="clay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b96c40"/><stop offset="1" stop-color="#8a5230"/></linearGradient>
+      <linearGradient id="stands" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0a1428"/><stop offset="1" stop-color="#13223e"/></linearGradient>`;
+    scene.appendChild(defs);
+    scene.insertBefore(defs,scene.firstChild);
+  }
+  render();
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- moving actors: kept in WORLD coords and re-projected every frame, so
+  // motion respects perspective (things grow as they come toward you) ----
+  const actors = mk('g', {}); scene.appendChild(actors);
+  const ballW = [48, 94];    // bunt starts near home
+  const runW  = [77, 68];    // runner leads off first
+  const ballEl = mk('circle', { fill: '#fff' });
+  const runEl  = mk('circle', { fill: '#fbbf24', stroke: '#3a2a05', 'stroke-width': .4 });
+  actors.appendChild(runEl); actors.appendChild(ballEl);
+
+  // batter at the plate (left box) — an orientation anchor: "that's home, ahead of me"
+  function drawBatter() {
+    const P = project([45.5, 95]); if (!P) return;
+    const r = Math.min(6, Math.max(2, P.s * 2.4));
+    actors.appendChild(mk('rect', { x: P.x - r * .34, y: P.y - r * 1.3, width: r * .68, height: r * 1.35, rx: r * .3, fill: '#c1401f' }));
+    actors.appendChild(mk('circle', { cx: P.x, cy: P.y - r * 1.5, r: r * .42, fill: '#e7c9a6' }));
+    // bat
+    actors.appendChild(mk('line', { x1: P.x + r * .2, y1: P.y - r * 1.3, x2: P.x + r * 1.1, y2: P.y - r * 2.1, stroke: '#caa15a', 'stroke-width': Math.max(.5, r * .18), 'stroke-linecap': 'round' }));
+  }
+  function place(el, w, k) {
+    const P = project(w); if (!P) { el.style.display = 'none'; return; }
+    el.style.display = ''; el.setAttribute('cx', P.x); el.setAttribute('cy', P.y);
+    el.setAttribute('r', Math.min(k.max, Math.max(k.min, P.s * k.mul)));
+  }
+  function frame() { place(ballEl, ballW, { min: 1.1, max: 3.6, mul: 1.8 }); place(runEl, runW, { min: 1.2, max: 5, mul: 2.2 }); }
+  drawBatter(); frame();
+
+  // world-space tween along a path of points
+  function tween(set, path, dur, done) {
+    if (reduced) { set(path[path.length - 1]); frame(); done && done(); return; }
+    const segs = []; let total = 0;
+    for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); segs.push(d); total += d; }
+    const t0 = performance.now();
+    (function step(t) {
+      const p = Math.min(1, (t - t0) / dur); let dist = p * total, i = 0;
+      while (i < segs.length - 1 && dist > segs[i]) { dist -= segs[i]; i++; }
+      const a = path[i], b = path[i + 1] || path[i], f = segs[i] ? Math.min(1, dist / segs[i]) : 1;
+      set([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]); frame();
+      if (p < 1) requestAnimationFrame(step); else done && done();
+    })(t0);
+  }
+  const setBall = w => { ballW[0] = w[0]; ballW[1] = w[1]; };
+  const setRun  = w => { runW[0] = w[0]; runW[1] = w[1]; };
+
+  // On load: the bunt is put down and rolls up the third-base line toward you.
+  tween(setBall, [[48, 94], [43, 88], [38, 84]], 1500);
+
+  // ---- interaction ----
+  const OPTIONS = [
+    { n: 1, label: 'Charge & field it', correct: true },
+    { n: 2, label: 'Hold and cover 3rd' },
+    { n: 3, label: 'Back up second' },
+  ];
+  const ae = document.getElementById('answers');
+  OPTIONS.forEach(o => { const b = document.createElement('button'); b.className = 'ans'; b.dataset.n = o.n;
+    b.innerHTML = `<span class="b">${o.n}</span><span>${o.label}</span>`; b.onclick = () => choose(o); ae.appendChild(b); });
+  let done = false;
+  function choose(o) {
+    if (done) return; done = true;
+    document.querySelectorAll('.ans').forEach(a => { a.style.pointerEvents = 'none'; const n = +a.dataset.n;
+      if (OPTIONS.find(x => x.correct).n === n) a.dataset.s = 'correct'; else if (n === o.n) a.dataset.s = 'wrong'; });
+    document.getElementById('prompt').textContent = o.correct ? 'Nice — watch it play out…' : 'Watch what happens…';
+
+    if (o.correct) {
+      tween(setBall, [[38, 84], [30, 78], [77, 71]], 1400); // charge, glove, throw to first
+      tween(setRun, [[77, 68], [50, 44]], 1400, showFB);    // runner takes second
+    } else {
+      tween(setBall, [[38, 84], [34, 81]], 800);            // bunt dies untouched
+      tween(setRun, [[77, 68], [50, 44]], 1100, showFB);    // runner advances anyway
+    }
+    function showFB() {
+      const fb = document.getElementById('fb'); fb.className = 'fb show ' + (o.correct ? 'good' : 'bad');
+      document.getElementById('fbv').textContent = o.correct ? '✓ Right responsibility' : '✕ Wrong — here’s why';
+      document.getElementById('fbr').textContent = o.correct
+        ? 'You attack it, glove it on the run, and throw to first — out. The shortstop rotated behind you to cover third.'
+        : 'The bunt dies in the grass with nobody on it — batter safe, runner to second. On a bunt you charge the ball.';
+    }
+  }
+})();
+</script>
